@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Combo Lock Rolling Test</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --fg: #e7e9ee;
+      --accent: #4f8cff;
+      --muted: #8b94a7;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .page {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    header, footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      color: var(--muted);
+      letter-spacing: 0.3px;
+    }
+    .stage {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 32px;
+      overflow: hidden;
+    }
+    .lock {
+      position: relative;
+      width: 200px;
+      height: 320px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #171a22, #10131a);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+      touch-action: none; /* important for pointer events */
+    }
+    /* Deactivate the first (top) demo lock to avoid phantom clicks */
+    .stage > .lock:not(.lock-linear) {
+      height: 8px;
+      background: transparent;
+      box-shadow: none;
+      border: 0;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .stage > .lock:not(.lock-linear) .slotMarker,
+    .stage > .lock:not(.lock-linear) .stack {
+      display: none;
+    }
+    .stage > .hud:first-of-type,
+    .stage > .controls:first-of-type {
+      pointer-events: none;
+      opacity: 0.0;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    /* Make the linear (bottom) lock taller so full neighbors are visible while dragging */
+    .lock-linear {
+      height: 440px;
+      background: transparent !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      border-radius: 0;
+    }
+    /* Remove the dotted slot marker for the improved lock */
+    .lock-linear .slotMarker { display: none !important; }
+    /* New layers lock shares same visual container behavior */
+    .lock-layers {
+      width: 220px;
+      height: 440px;
+      background: transparent !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      border-radius: 0;
+      position: relative;
+    }
+    .lock-layers .slotMarker { display: none !important; }
+    .center-col {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 16px;
+      min-width: 260px;
+    }
+    .left-col {
+      position: absolute;
+      top: 16px;
+      left: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      pointer-events: auto;
+    }
+    #layers-preview-canvas {
+      width: 360px;
+      height: 240px;
+      background: #111418;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    }
+    .slotMarker {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 88px; /* big slot visual */
+      border-top: 1px dashed rgba(255,255,255,0.08);
+      border-bottom: 1px dashed rgba(255,255,255,0.08);
+      pointer-events: none;
+    }
+    .stack {
+      position: absolute;
+      inset: 0;
+      will-change: transform;
+    }
+    .item {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 88px;
+      height: 56px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: var(--fg);
+      background: linear-gradient(180deg, #1e2330, #161b26);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.06);
+      user-select: none;
+      pointer-events: none; /* all events on .lock */
+    }
+    .hud {
+      margin-top: 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .btn {
+      background: #1b2030;
+      color: var(--fg);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+  </style>
+  <meta name="color-scheme" content="dark light" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f1115" />
+  <script>
+    // Utility: modulo that works for negatives
+    function mod(n, m) {
+      return ((n % m) + m) % m;
+    }
+
+    // Signed circular distance from a (float) to b (float) over length n
+    function circularDelta(a, b, n) {
+      const raw = a - b;
+      const half = n / 2;
+      let d = raw % n;
+      if (d > half) d -= n;
+      if (d < -half) d += n;
+      return d;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const lockEl = document.querySelector('.lock');
+      const stackEl = document.querySelector('.stack');
+      const selectedText = document.getElementById('selected');
+
+      const digits = Array.from({ length: 10 }, (_, i) => i);
+      const N = digits.length;
+
+      // Visual constants
+      const BIG_H = 88;      // selected slot height visual
+      const SMALL_H = 56;    // neighbor height
+      const GAP = 10;        // gap between selected and neighbors
+      const PEEK = 12;       // peek stack step
+      const STEP_PX = 72;    // px drag per one index change
+      const BIG_SCALE = 1.15;
+      const SMALL_SCALE = 0.92;
+
+      // State
+      let wheelOffset = 0;           // float center index
+      let order = digits.slice();    // current circular order (values)
+      let isDragging = false;
+      let startY = 0;
+      let startOffset = 0;
+      let moved = false;
+      let raf = 0;
+      let reorderMode = false;
+      let longPressTimer = 0;
+      let reorderActiveIndex = null; // index into order being reordered
+      const LONG_PRESS_MS = 520;
+      const MOVE_THRESHOLD = 8;
+
+      // Create item elements keyed by value
+      const items = digits.reduce((acc, num) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.textContent = String(num);
+        stackEl.appendChild(el);
+        acc[num] = el;
+        return acc;
+      }, {});
+
+      function lerp(a, b, t) { return a + (b - a) * t; }
+
+      function yForIndex(i, rectHeight) {
+        const centerY = rectHeight / 2;
+        const yTopNeighbor = centerY - (BIG_H / 2 + GAP + SMALL_H / 2);
+        const yBottomNeighbor = centerY + (BIG_H / 2 + GAP + SMALL_H / 2);
+        const k = circularDelta(i, wheelOffset, N);
+        if (k <= -1) {
+          const beyond = Math.abs(k) - 1;
+          return yTopNeighbor - (beyond * PEEK);
+        } else if (k >= 1) {
+          const beyond = k - 1;
+          return yBottomNeighbor + (beyond * PEEK);
+        } else if (k > -1 && k < 0) {
+          const t = k + 1;
+          return lerp(yTopNeighbor, centerY, t);
+        } else {
+          const t = k;
+          return lerp(centerY, yBottomNeighbor, t);
+        }
+      }
+
+      function updateActiveLayerFromWheel() {
+        const disp = orderL.slice().reverse(); // top->bottom
+        const selIdx = Math.max(0, Math.min(disp.length - 1, Math.round(wheelOffsetL)));
+        activeLayerIndexL = disp[selIdx];
+      }
+
+      function render() {
+        const rect = lockEl.getBoundingClientRect();
+        const centerY = rect.height / 2;
+        const selectedIndex = Math.round(wheelOffset);
+        const yTopNeighbor = centerY - (BIG_H / 2 + GAP + SMALL_H / 2);
+        const yBottomNeighbor = centerY + (BIG_H / 2 + GAP + SMALL_H / 2);
+        const sel = mod(selectedIndex, N);
+        selectedText.textContent = String(order[sel]);
+
+        for (let i = 0; i < N; i++) {
+          const value = order[i];
+          const el = items[value];
+          const k = circularDelta(i, wheelOffset, N);
+          let y = 0;
+          let scale = SMALL_SCALE;
+          let opacity = 0.95;
+          const z = 1000 - Math.abs(k) * 10;
+
+          if (k <= -1) {
+            const beyond = Math.abs(k) - 1;
+            y = yTopNeighbor - (beyond * PEEK);
+            scale = SMALL_SCALE;
+            opacity = 0.85 - Math.min(0.5, beyond * 0.05);
+          } else if (k >= 1) {
+            const beyond = k - 1;
+            y = yBottomNeighbor + (beyond * PEEK);
+            scale = SMALL_SCALE;
+            opacity = 0.85 - Math.min(0.5, beyond * 0.05);
+          } else if (k > -1 && k < 0) {
+            const t = k + 1;
+            y = lerp(yTopNeighbor, centerY, t);
+            scale = lerp(SMALL_SCALE, BIG_SCALE, t);
+            opacity = lerp(0.9, 1.0, t);
+          } else {
+            const t = k;
+            y = lerp(centerY, yBottomNeighbor, t);
+            scale = lerp(BIG_SCALE, SMALL_SCALE, t);
+            opacity = lerp(1.0, 0.9, t);
+          }
+
+          const translateY = Math.round(y - SMALL_H / 2);
+          el.style.zIndex = String(Math.round(z));
+          el.style.opacity = String(opacity);
+          el.style.transform = `translate3d(-50%, ${translateY}px, 0) scale(${scale})`;
+        }
+      }
+
+      function animateToIndex(targetIndex) {
+        const start = wheelOffset;
+        const delta = circularDelta(targetIndex, wheelOffset, N);
+        const end = wheelOffset + delta;
+        const duration = 160;
+        const t0 = performance.now();
+        cancelAnimationFrame(raf);
+        function step(ts) {
+          const t = Math.min(1, (ts - t0) / duration);
+          const ease = t < 0.5 ? 2*t*t : -1 + (4 - 2*t) * t;
+          wheelOffset = start + (end - start) * ease;
+          render();
+          if (t < 1) raf = requestAnimationFrame(step);
+        }
+        raf = requestAnimationFrame(step);
+      }
+
+      function snapToNearest() {
+        const target = Math.round(wheelOffset);
+        animateToIndex(target);
+      }
+
+      function getNearestIndexAtY(clientY) {
+        const rect = lockEl.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        let bestI = 0;
+        let bestD = Infinity;
+        for (let i = 0; i < N; i++) {
+          const y = yForIndex(i, rect.height);
+          const d = Math.abs(localY - y);
+          if (d < bestD) { bestD = d; bestI = i; }
+        }
+        return bestI;
+      }
+
+      function enterReorderMode(anchorY) {
+        reorderMode = true;
+        const idx = getNearestIndexAtY(anchorY);
+        reorderActiveIndex = idx;
+        wheelOffset = idx; // keep active centered while reordering
+        render();
+      }
+
+      function clearLongPress() {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = 0; }
+      }
+
+      function onPointerDown(e) {
+        isDragging = true;
+        moved = false;
+        reorderMode = false;
+        reorderActiveIndex = null;
+        startY = e.clientY;
+        startOffset = wheelOffset;
+        lockEl.setPointerCapture(e.pointerId);
+        clearLongPress();
+        longPressTimer = setTimeout(() => {
+          if (!moved) enterReorderMode(startY);
+        }, LONG_PRESS_MS);
+        e.preventDefault();
+      }
+
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        const dy = e.clientY - startY;
+        if (!moved && Math.abs(dy) > MOVE_THRESHOLD) {
+          moved = true;
+          clearLongPress();
+        }
+        if (reorderMode) {
+          const nextIndex = getNearestIndexAtY(e.clientY);
+          if (nextIndex !== reorderActiveIndex) {
+            const [val] = order.splice(reorderActiveIndex, 1);
+            order.splice(nextIndex, 0, val);
+            reorderActiveIndex = nextIndex;
+            wheelOffset = reorderActiveIndex; // keep centered
+            render();
+          }
+        } else {
+          wheelOffset = startOffset - dy / STEP_PX; // roll
+          render();
+        }
+        e.preventDefault();
+      }
+
+      function onPointerUp(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        clearLongPress();
+        if (reorderMode) {
+          wheelOffset = Math.round(wheelOffset);
+          render();
+        } else if (!moved) {
+          const idx = getNearestIndexAtY(e.clientY);
+          animateToIndex(idx);
+        } else {
+          snapToNearest();
+        }
+        e.preventDefault();
+      }
+
+      lockEl.addEventListener('pointerdown', onPointerDown, { passive: false, capture: true });
+      lockEl.addEventListener('pointermove', onPointerMove, { passive: false, capture: true });
+      lockEl.addEventListener('pointerup', onPointerUp, { passive: false, capture: true });
+      lockEl.addEventListener('pointercancel', onPointerUp, { passive: false, capture: true });
+
+      // Controls
+      document.getElementById('prev').addEventListener('click', () => {
+        animateToIndex(Math.round(wheelOffset) - 1);
+      });
+      document.getElementById('next').addEventListener('click', () => {
+        animateToIndex(Math.round(wheelOffset) + 1);
+      });
+      document.getElementById('reset').addEventListener('click', () => {
+        animateToIndex(0);
+      });
+
+      // Initial render
+      render();
+      const ro = new ResizeObserver(() => render());
+      ro.observe(lockEl);
+
+      // ---------------- Linear (non-circular) lock 1..10 ----------------
+      const lockEl2 = document.querySelector('.lock-linear');
+      const stackEl2 = document.querySelector('.stack-linear');
+      const selectedText2 = document.getElementById('selected2');
+      // Indicator layer for collapsed state
+      const indLayer2 = document.createElement('div');
+      indLayer2.id = 'indicators2';
+      indLayer2.style.cssText = 'position:absolute; inset:0; pointer-events:none;';
+      lockEl2.appendChild(indLayer2);
+
+      const digits2 = Array.from({ length: 10 }, (_, i) => i + 1); // 1..10
+      const N2 = digits2.length;
+
+      const items2 = digits2.map((num) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.textContent = String(num);
+        stackEl2.appendChild(el);
+        return el;
+      });
+
+      let order2 = digits2.map((_, i) => i); // visual order indices
+      let wheelOffset2 = 0; // float index 0..N2-1 (center)
+      let isExpanded2 = false; // hide non-selected until tapped
+      const BIG_H2 = 88, SMALL_H2 = 56, GAP2 = 10, PEEK2 = 12, STEP_PX2 = 72;
+      let raf2 = 0;
+      function requestRender2() {
+        if (raf2) return;
+        raf2 = requestAnimationFrame(() => { raf2 = 0; render2(); });
+      }
+
+      function centerY2() { return lockEl2.getBoundingClientRect().height / 2; }
+      function render2() {
+        const centerY = centerY2();
+        const anchorY = (reorderMode2 && dragLocalY2 != null) ? Math.max(SMALL_H2 / 2 + 4, Math.min(lockEl2.getBoundingClientRect().height - SMALL_H2 / 2 - 4, dragLocalY2)) : centerY;
+        const baseAnchorY = centerY; // keep neighbors anchored; only dragged item follows finger
+        const sel = Math.max(0, Math.min(N2 - 1, Math.round(wheelOffset2)));
+        selectedText2.textContent = String(digits2[order2[sel]]);
+        for (let i = 0; i < N2; i++) {
+          const rowIndex = order2[i];
+          const el = items2[rowIndex];
+          let displayPos = i;
+          let y = 0, scale = 0.92, opacity = 0.95, z = 0;
+          if (reorderMode2 && typeof activeIdx2 === 'number' && typeof targetIdx2 === 'number') {
+            if (i < activeIdx2 && i >= targetIdx2) displayPos = i + 1;
+            else if (i > activeIdx2 && i <= targetIdx2) displayPos = i - 1;
+          }
+          if (reorderMode2 && i === activeIdx2 && dragLocalY2 != null) {
+            y = anchorY; scale = 1.12; opacity = 1.0; z = 1100;
+            el.style.boxShadow = '0 10px 24px rgba(0,0,0,0.35)'; el.style.transition = 'none';
+          } else if (reorderMode2) {
+            // Expanded slots around target: two fully visible above/below, others peek
+            const rel = displayPos - (typeof targetIdx2 === 'number' ? targetIdx2 : sel);
+            const fullGap = (BIG_H2 / 2 + GAP2 + SMALL_H2 / 2);
+            if (rel <= -3) {
+              y = baseAnchorY - fullGap - (SMALL_H2 + GAP2) - ((-rel - 2) * PEEK2);
+              scale = 0.9; opacity = 0.85; z = 800;
+            } else if (rel === -2) {
+              y = baseAnchorY - fullGap - (SMALL_H2 + GAP2);
+              scale = 0.96; opacity = 0.95; z = 950;
+            } else if (rel === -1) {
+              y = baseAnchorY - fullGap;
+              scale = 1.0; opacity = 1.0; z = 980;
+            } else if (rel === 0) {
+              y = baseAnchorY; scale = 1.12; opacity = 1.0; z = 1000;
+            } else if (rel === 1) {
+              y = baseAnchorY + fullGap; scale = 1.0; opacity = 1.0; z = 980;
+            } else if (rel === 2) {
+              y = baseAnchorY + fullGap + (SMALL_H2 + GAP2); scale = 0.96; opacity = 0.95; z = 950;
+            } else { // rel >= 3
+              y = baseAnchorY + fullGap + (SMALL_H2 + GAP2) + ((rel - 2) * PEEK2);
+              scale = 0.9; opacity = 0.85; z = 800;
+            }
+            el.style.boxShadow = 'none'; el.style.transition = 'transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1)';
+          } else {
+            // Normal rolling layout
+            const yTop = centerY - (BIG_H2 / 2 + GAP2 + SMALL_H2 / 2);
+            const yBot = centerY + (BIG_H2 / 2 + GAP2 + SMALL_H2 / 2);
+            const k = displayPos - wheelOffset2;
+            if (k <= -1) { const b = Math.abs(k) - 1; y = yTop - b * PEEK2; scale = 0.92; opacity = 0.85 - Math.min(0.5, b * 0.05); z = 1000 - Math.round(Math.abs(k) * 10); }
+            else if (k >= 1) { const b = k - 1; y = yBot + b * PEEK2; scale = 0.92; opacity = 0.85 - Math.min(0.5, b * 0.05); z = 1000 - Math.round(Math.abs(k) * 10); }
+            else if (k > -1 && k < 0) { const t = k + 1; y = yTop + (centerY - yTop) * t; scale = 0.92 + (1.15 - 0.92) * t; opacity = 0.9 + (1.0 - 0.9) * t; z = 1000 - Math.round(Math.abs(k) * 10); }
+            else { const t = k; y = centerY + (yBot - centerY) * t; scale = 1.15 + (0.92 - 1.15) * t; opacity = 1.0 + (0.9 - 1.0) * t; z = 1000 - Math.round(Math.abs(k) * 10); }
+            el.style.boxShadow = 'none'; el.style.transition = 'transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1)';
+          }
+          const translateY = (y - SMALL_H2 / 2);
+          // Borders: default subtle border on all numbers, thicker on selected
+          el.style.borderRadius = '8px';
+          el.style.border = '2px solid rgba(255,255,255,0.7)';
+          if (i === sel) {
+            el.style.border = '4px solid #ffffff';
+          }
+          // If collapsed and not reordering, only show the selected number
+          if (!isExpanded2 && !reorderMode2) {
+            const isSelected = (i === sel);
+            el.style.opacity = isSelected ? '1' : '0';
+            el.style.pointerEvents = isSelected ? 'auto' : 'none';
+          } else {
+            el.style.opacity = String(opacity);
+            el.style.pointerEvents = 'auto';
+          }
+          el.style.zIndex = String(z || 900);
+          el.style.transform = `translate3d(-50%, ${translateY}px, 0) scale(${scale})`;
+        }
+        // Update collapsed indicators (hidden counts) when not expanded/reordering
+        updateIndicators2(centerY, sel);
+      }
+
+      function updateIndicators2(centerY, selIndex) {
+        if (isExpanded2 || reorderMode2) { indLayer2.innerHTML = ''; return; }
+        const rect = lockEl2.getBoundingClientRect();
+        const width = rect.width;
+        const aboveCount = selIndex;
+        const belowCount = Math.max(0, N2 - 1 - selIndex);
+        // Constrain to main number width: SMALL_H2 is the square preview height; use that as max width
+        const maxW = SMALL_H2; // never wider than the number itself
+        const baseW = Math.round(maxW * 0.95);
+        const scale = 0.82;
+        const spacing = Math.max(6, Math.round(SMALL_H2 * 0.22)); // tighter spacing between lines
+        const startGap = Math.max(8, Math.round(SMALL_H2 * 0.25)); // extra space from main number
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#8b94a7';
+        indLayer2.innerHTML = '';
+        // Top stack
+        for (let i = 1; i <= aboveCount; i++) {
+          const w = Math.max(14, Math.round(baseW * Math.pow(scale, i - 1)));
+          const y = Math.round(centerY - (SMALL_H2 / 2) - startGap - i * spacing); // start just above main number with extra gap
+          const line = document.createElement('div');
+          line.style.cssText = `position:absolute; left:50%; transform:translateX(-50%); top:${y}px; height:4px; width:${w}px; background:${color.trim()}; opacity:${Math.max(0.25, 0.85 - i * 0.06)}; border-radius:3px;`;
+          indLayer2.appendChild(line);
+        }
+        // Bottom stack
+        for (let i = 1; i <= belowCount; i++) {
+          const w = Math.max(14, Math.round(baseW * Math.pow(scale, i - 1)));
+          const y = Math.round(centerY + (SMALL_H2 / 2) + startGap + i * spacing); // start just below main number with extra gap
+          const line = document.createElement('div');
+          line.style.cssText = `position:absolute; left:50%; transform:translateX(-50%); top:${y}px; height:4px; width:${w}px; background:${color.trim()}; opacity:${Math.max(0.25, 0.85 - i * 0.06)}; border-radius:3px;`;
+          indLayer2.appendChild(line);
+        }
+      }
+
+      function snap2() { wheelOffset2 = Math.max(0, Math.min(N2 - 1, Math.round(wheelOffset2))); render2(); }
+
+      let dragging2 = false, startY2 = 0, startOff2 = 0, moved2 = false;
+      let reorderMode2 = false, longPress2 = 0, activeIdx2 = null, targetIdx2 = null, dragLocalY2 = null;
+      const LONG_PRESS_MS2 = 520, MOVE_THRESHOLD2 = 16;
+      function clearLP2() { if (longPress2) { clearTimeout(longPress2); longPress2 = 0; } }
+      function yForIndex2(i) {
+        const centerY = centerY2();
+        const yTop = centerY - (BIG_H2 / 2 + GAP2 + SMALL_H2 / 2);
+        const yBot = centerY + (BIG_H2 / 2 + GAP2 + SMALL_H2 / 2);
+        const k = i - wheelOffset2;
+        if (k <= -1) return yTop - (Math.abs(k) - 1) * PEEK2;
+        if (k >= 1) return yBot + (k - 1) * PEEK2;
+        if (k > -1 && k < 0) return yTop + (centerY - yTop) * (k + 1);
+        return centerY + (yBot - centerY) * k;
+      }
+      function nearestIdxAtY2(clientY) {
+        const rect = lockEl2.getBoundingClientRect(); const localY = clientY - rect.top;
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < N2; i++) { const y = yForIndex2(i); const d = Math.abs(localY - y); if (d < bestD) { bestD = d; best = i; } }
+        return best;
+      }
+      function enterReorder2(anchorY) { reorderMode2 = true; isExpanded2 = true; activeIdx2 = nearestIdxAtY2(anchorY); wheelOffset2 = Math.max(0, Math.min(N2 - 1, activeIdx2)); const rect = lockEl2.getBoundingClientRect(); dragLocalY2 = anchorY - rect.top; targetIdx2 = activeIdx2; render2(); }
+
+      function down2(e) { dragging2 = true; moved2 = false; reorderMode2 = false; activeIdx2 = null; startY2 = e.clientY; startOff2 = wheelOffset2; lockEl2.setPointerCapture(e.pointerId); clearLP2(); longPress2 = setTimeout(() => { if (!moved2) enterReorder2(startY2); }, LONG_PRESS_MS2); e.preventDefault(); }
+      function move2(e) {
+        if (!dragging2) return;
+        const dyTotal = e.clientY - startY2;
+        if (!moved2 && Math.abs(dyTotal) > MOVE_THRESHOLD2) { moved2 = true; clearLP2(); }
+        if (reorderMode2) {
+          const rect = lockEl2.getBoundingClientRect(); dragLocalY2 = e.clientY - rect.top; const next = nearestIdxAtY2(e.clientY); targetIdx2 = next; requestRender2();
+        } else {
+          // Smooth 1:1 mapping like the top lock (non-circular + clamp)
+          const dy = e.clientY - startY2;
+          wheelOffset2 = Math.max(0, Math.min(N2 - 1, startOff2 - dy / STEP_PX2));
+          requestRender2();
+        }
+        e.preventDefault();
+      }
+      function animateToIndex2(targetIdx) {
+        const start = wheelOffset2; const end = Math.max(0, Math.min(N2 - 1, targetIdx));
+        const duration = 200; const t0 = performance.now();
+        function step(ts) { const t = Math.min(1, (ts - t0) / duration); const ease = t < 0.5 ? 2*t*t : -1 + (4 - 2*t) * t; wheelOffset2 = start + (end - start) * ease; render2(); if (t < 1) requestAnimationFrame(step); }
+        requestAnimationFrame(step);
+      }
+      function up2(e) {
+        if (!dragging2) return; dragging2 = false; clearLP2();
+        if (reorderMode2) {
+          if (typeof targetIdx2 === 'number' && targetIdx2 !== activeIdx2) { const [val] = order2.splice(activeIdx2, 1); order2.splice(targetIdx2, 0, val); activeIdx2 = targetIdx2; }
+          reorderMode2 = false; targetIdx2 = null; dragLocalY2 = null; animateToIndex2(Math.round(activeIdx2));
+        }
+        else if (!moved2) {
+          // Toggle expand/collapse on tap
+          if (isExpanded2) { isExpanded2 = false; render2(); }
+          else { const idx = nearestIdxAtY2(e.clientY); isExpanded2 = true; animateToIndex2(idx); }
+        }
+        else { animateToIndex2(Math.round(wheelOffset2)); }
+        e.preventDefault();
+      }
+
+      lockEl2.addEventListener('pointerdown', down2, { passive: false, capture: true });
+      lockEl2.addEventListener('pointermove', move2, { passive: false, capture: true });
+      lockEl2.addEventListener('pointerup', up2, { passive: false, capture: true });
+      lockEl2.addEventListener('pointercancel', up2, { passive: false, capture: true });
+      // Collapse when clicking outside
+      document.addEventListener('pointerdown', (ev) => {
+        if (!isExpanded2) return;
+        const t = ev.target;
+        if (lockEl2.contains(t)) return;
+        const controls = [document.getElementById('prev2'), document.getElementById('next2'), document.getElementById('reset2')];
+        if (controls.some(c => c && c.contains(t))) return;
+        isExpanded2 = false; render2();
+      }, true);
+
+      document.getElementById('prev2').addEventListener('click', () => { wheelOffset2 = Math.max(0, Math.min(N2 - 1, Math.round(wheelOffset2) - 1)); render2(); });
+      document.getElementById('next2').addEventListener('click', () => { wheelOffset2 = Math.max(0, Math.min(N2 - 1, Math.round(wheelOffset2) + 1)); render2(); });
+      document.getElementById('reset2').addEventListener('click', () => { wheelOffset2 = 0; render2(); });
+
+      render2();
+
+      // ---------------- Layers combo lock (5 rectangles) ----------------
+      const lockLayers = document.querySelector('.lock-layers');
+      const stackLayers = document.querySelector('.stack-layers');
+      const canvas = document.getElementById('layers-preview-canvas');
+      const ctx = canvas.getContext('2d');
+      // Indicators layer for collapsed state (layers lock)
+      const indLayerL = document.createElement('div');
+      indLayerL.id = 'indicatorsL';
+      indLayerL.style.cssText = 'position:absolute; inset:0; pointer-events:none;';
+      lockLayers.appendChild(indLayerL);
+
+      // Test layers (simulate image-editor layers)
+      const layers = [
+        { id: 1, color: '#e74c3c', label: '1' },
+        { id: 2, color: '#f1c40f', label: '2' },
+        { id: 3, color: '#2ecc71', label: '3' },
+        { id: 4, color: '#3498db', label: '4' },
+        { id: 5, color: '#9b59b6', label: '5' },
+      ];
+
+      // Build lock items (same visual size as numeric lock)
+      const itemsL = layers.map((layer) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.textContent = layer.label;
+        el.style.background = layer.color;
+        stackLayers.appendChild(el);
+        return el;
+      });
+
+      // State for layers lock
+      let orderL = layers.map((_, i) => i); // bottom->top order (index into layers)
+      let wheelOffsetL = 0;                  // display space (0 = topmost)
+      let isExpandedL = false;               // collapsed by default like numeric lock
+      let activeLayerIndexL = null;          // currently active layer index in `layers`
+      let draggingL = false, startYL = 0, startOffL = 0, movedL = false;
+      let reorderModeL = false, longPressL = 0, activeIdxL = null, targetIdxL = null, dragLocalYL = null;
+      const BIG_HL = 88, SMALL_HL = 56, GAP_L = 10, PEEK_L = 12, STEP_PXL = 72;
+      let rafL = 0;
+      function requestRenderL() {
+        if (rafL) return;
+        rafL = requestAnimationFrame(() => { rafL = 0; renderLayersLock(); });
+      }
+      const LONG_PRESS_MSL = 520, MOVE_THRESHOLDL = 16;
+
+      function centerYL() { return lockLayers.getBoundingClientRect().height / 2; }
+
+      // Initialize layer rect sizes/positions once
+      function ensureLayerRectsInitialized() {
+        const w = canvas.width, h = canvas.height;
+        const rectW = Math.min(220, Math.round(w * 0.32));
+        const rectH = Math.min(140, Math.round(h * 0.3));
+        const defaults = [
+          { x: 40, y: 40 },
+          { x: 260, y: 60 },
+          { x: 140, y: 160 },
+          { x: 360, y: 200 },
+          { x: 200, y: 20 }
+        ];
+        for (let i = 0; i < layers.length; i++) {
+          const L = layers[i];
+          if (typeof L.w !== 'number') {
+            L.w = rectW; L.h = rectH;
+          }
+          if (typeof L.x !== 'number' || typeof L.y !== 'number') {
+            L.x = defaults[i % defaults.length].x;
+            L.y = defaults[i % defaults.length].y;
+          }
+        }
+      }
+
+      function renderCanvas() {
+        ensureLayerRectsInitialized();
+        // Draw rectangles in layer order (bottom first, top last)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < orderL.length; i++) {
+          const L = layers[orderL[i]];
+          ctx.save();
+          ctx.fillStyle = L.color;
+          const isActive = (orderL[i] === activeLayerIndexL);
+          ctx.strokeStyle = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)';
+          ctx.lineWidth = isActive ? 6 : 4;
+          ctx.beginPath();
+          if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(L.x, L.y, L.w, L.h, 16);
+          } else {
+            ctx.rect(L.x, L.y, L.w, L.h);
+          }
+          ctx.fill();
+          ctx.stroke();
+          // Label
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 48px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(L.label, L.x + L.w / 2, L.y + L.h / 2);
+          ctx.restore();
+        }
+      }
+
+      function renderLayersLock() {
+        updateActiveLayerFromWheel();
+        const centerY = centerYL();
+        const anchorY = (reorderModeL && dragLocalYL != null)
+          ? Math.max(SMALL_HL / 2 + 4, Math.min(lockLayers.getBoundingClientRect().height - SMALL_HL / 2 - 4, dragLocalYL))
+          : centerY;
+        // Display array: top->bottom
+        const disp = orderL.slice().reverse();
+        const selIdx = Math.max(0, Math.min(disp.length - 1, Math.round(wheelOffsetL)));
+        for (let i = 0; i < disp.length; i++) {
+          const layerIndex = disp[i];
+          const el = itemsL[layerIndex];
+          let y = 0, scale = 0.92, opacity = 0.95, z = 0;
+          if (reorderModeL && i === activeIdxL && dragLocalYL != null) {
+            y = anchorY; scale = 1.12; opacity = 1.0; z = 1100;
+            el.style.boxShadow = '0 10px 24px rgba(0,0,0,0.35)'; el.style.transition = 'none';
+          } else if (reorderModeL) {
+            // Flat reorder layout: all rows evenly spaced; only rows between activeIdxL and targetIdxL shift to make room
+            const target = (typeof targetIdxL === 'number' ? targetIdxL : selIdx);
+            const fullStep = (SMALL_HL + GAP_L);
+            // Flat baseline (no peeks, no scaling): center row at centerY, neighbors at ±fullStep
+            const flatY = (idx) => centerY + (idx - selIdx) * fullStep;
+            const baseYi = flatY(i);
+            if (target > activeIdxL) {
+              // Dragging down: rows in (activeIdxL+1..target) shift up one slot; dragged snaps to target slot
+              if (i > activeIdxL && i <= target) {
+                y = baseYi - fullStep;
+              } else if (i === activeIdxL) {
+                y = flatY(target);
+              } else {
+                y = baseYi;
+              }
+            } else if (target < activeIdxL) {
+              // Dragging up: rows in (target..activeIdxL-1) shift down one slot; dragged snaps to target slot
+              if (i >= target && i < activeIdxL) {
+                y = baseYi + fullStep;
+              } else if (i === activeIdxL) {
+                y = flatY(target);
+              } else {
+                y = baseYi;
+              }
+            } else {
+              y = baseYi;
+            }
+            // All rows flat; emphasize dragged only by shadow/zIndex
+            scale = 1.0; opacity = 1.0;
+            z = (i === activeIdxL) ? 1100 : 900;
+            el.style.boxShadow = (i === activeIdxL) ? '0 10px 24px rgba(0,0,0,0.35)' : 'none';
+            el.style.transition = (i === activeIdxL) ? 'none' : 'transform 90ms cubic-bezier(0.22, 0.61, 0.36, 1)';
+          } else {
+            // Smooth rolling layout (fractional, like refined numeric lock)
+            const yTop = centerY - (BIG_HL / 2 + GAP_L + SMALL_HL / 2);
+            const yBot = centerY + (BIG_HL / 2 + GAP_L + SMALL_HL / 2);
+            const k = i - wheelOffsetL;
+            if (k <= -1) {
+              const b = Math.abs(k) - 1;
+              y = yTop - b * PEEK_L;
+              scale = 0.92; opacity = 0.85 - Math.min(0.5, b * 0.05); z = 1000 - Math.round(Math.abs(k) * 10);
+            } else if (k >= 1) {
+              const b = k - 1;
+              y = yBot + b * PEEK_L;
+              scale = 0.92; opacity = 0.85 - Math.min(0.5, b * 0.05); z = 1000 - Math.round(Math.abs(k) * 10);
+            } else if (k > -1 && k < 0) {
+              const t = k + 1;
+              y = yTop + (centerY - yTop) * t;
+              scale = 0.92 + (1.15 - 0.92) * t; opacity = 0.9 + (1.0 - 0.9) * t; z = 1000 - Math.round(Math.abs(k) * 10);
+            } else { // 0..1
+              const t = k;
+              y = centerY + (yBot - centerY) * t;
+              scale = 1.15 + (0.92 - 1.15) * t; opacity = 1.0 + (0.9 - 1.0) * t; z = 1000 - Math.round(Math.abs(k) * 10);
+            }
+            el.style.boxShadow = 'none';
+            el.style.transition = draggingL ? 'none' : 'transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1)';
+          }
+          const translateY = (y - SMALL_HL / 2);
+          // Borders like numeric lock
+          el.style.borderRadius = '8px';
+          el.style.border = '2px solid rgba(255,255,255,0.7)';
+          if (i === selIdx) el.style.border = '4px solid #ffffff';
+          // Collapsed view: only show selected unless reordering
+          if (!isExpandedL && !reorderModeL) {
+            const isSelected = (i === selIdx);
+            el.style.opacity = isSelected ? '1' : '0';
+            el.style.pointerEvents = isSelected ? 'auto' : 'none';
+          } else {
+            el.style.opacity = String(opacity);
+            el.style.pointerEvents = 'auto';
+          }
+          el.style.zIndex = String(z || 900);
+          el.style.transform = `translate3d(-50%, ${translateY}px, 0) scale(${scale})`;
+        }
+        updateIndicatorsL(centerY, selIdx, disp.length);
+      }
+
+      function renderAllLayers() { renderLayersLock(); renderCanvas(); }
+
+      function nearestIdxAtYL(clientY) {
+        const rect = lockLayers.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        const centerY = centerYL();
+        const fullGap = (BIG_HL / 2 + GAP_L + SMALL_HL / 2);
+        const n = orderL.length;
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < n; i++) {
+          let y;
+          const k = i - Math.round(wheelOffsetL);
+          if (k <= -1) { const b = Math.abs(k) - 1; y = centerY - (fullGap + b * PEEK_L); }
+          else if (k >= 1) { const b = k - 1; y = centerY + (fullGap + b * PEEK_L); }
+          else y = centerY;
+          const d = Math.abs(localY - y);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
+      }
+
+      function downL(e) {
+        draggingL = true; movedL = false; reorderModeL = false; activeIdxL = null;
+        startYL = e.clientY; startOffL = wheelOffsetL;
+        lockLayers.setPointerCapture?.(e.pointerId);
+        clearTimeout(longPressL);
+        longPressL = setTimeout(() => {
+          if (!movedL) {
+            reorderModeL = true;
+            activeIdxL = Math.round(wheelOffsetL);
+            const rect = lockLayers.getBoundingClientRect();
+            dragLocalYL = e.clientY - rect.top;
+            targetIdxL = activeIdxL;
+            renderLayersLock();
+          }
+        }, LONG_PRESS_MSL);
+        e.preventDefault();
+      }
+      function moveL(e) {
+        if (!draggingL) return;
+        const dy = e.clientY - startYL;
+        if (!movedL && Math.abs(dy) > MOVE_THRESHOLDL) { movedL = true; isExpandedL = true; clearTimeout(longPressL); }
+        if (reorderModeL) {
+          const rect = lockLayers.getBoundingClientRect();
+          dragLocalYL = e.clientY - rect.top;
+          const next = nearestIdxAtYL(e.clientY);
+          targetIdxL = next;
+          requestRenderL();
+        } else {
+          wheelOffsetL = Math.max(0, Math.min(orderL.length - 1, startOffL - dy / STEP_PXL));
+          requestRenderL();
+        }
+        e.preventDefault();
+      }
+      function upL(e) {
+        if (!draggingL) return;
+        draggingL = false; clearTimeout(longPressL);
+        if (reorderModeL) {
+          if (typeof targetIdxL === 'number' && targetIdxL !== activeIdxL) {
+            // Commit reorder in display space then update orderL (bottom->top)
+            const disp = orderL.slice().reverse();
+            const [val] = disp.splice(activeIdxL, 1);
+            disp.splice(targetIdxL, 0, val);
+            orderL = disp.reverse();
+            activeIdxL = targetIdxL;
+          }
+          reorderModeL = false; targetIdxL = null; dragLocalYL = null;
+          wheelOffsetL = Math.round(activeIdxL);
+          updateActiveLayerFromWheel();
+          renderAllLayers();
+        } else {
+          // Tap toggles expand/collapse like numeric lock
+          if (!movedL) {
+            if (isExpandedL) { isExpandedL = false; renderLayersLock(); }
+            else { const idx = nearestIdxAtYL(e.clientY); wheelOffsetL = Math.max(0, Math.min(orderL.length - 1, idx)); updateActiveLayerFromWheel(); isExpandedL = true; renderLayersLock(); }
+          } else {
+            wheelOffsetL = Math.round(wheelOffsetL); updateActiveLayerFromWheel(); renderAllLayers();
+          }
+        }
+        e.preventDefault();
+      }
+
+      lockLayers.addEventListener('pointerdown', downL, { passive: false });
+      lockLayers.addEventListener('pointermove', moveL, { passive: false });
+      lockLayers.addEventListener('pointerup', upL, { passive: false });
+      lockLayers.addEventListener('pointercancel', upL, { passive: false });
+
+      // Collapse layers lock when clicking outside
+      document.addEventListener('pointerdown', (ev) => {
+        if (!isExpandedL) return;
+        const t = ev.target;
+        if (lockLayers.contains(t)) return;
+        isExpandedL = false; renderLayersLock();
+      }, true);
+
+      // Initial render for layers lock + canvas
+      renderAllLayers();
+
+      // Indicators for layers lock (collapsed state)
+      function updateIndicatorsL(centerY, selIdx, count) {
+        if (isExpandedL || reorderModeL) { indLayerL.innerHTML = ''; return; }
+        const rect = lockLayers.getBoundingClientRect();
+        const width = rect.width;
+        const above = selIdx; // indices above selected (towards top)
+        const below = Math.max(0, count - 1 - selIdx);
+        const maxW = SMALL_HL;
+        const baseW = Math.round(maxW * 0.95);
+        const scale = 0.82;
+        const spacing = Math.max(6, Math.round(SMALL_HL * 0.22));
+        const startGap = Math.max(8, Math.round(SMALL_HL * 0.25));
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#8b94a7';
+        indLayerL.innerHTML = '';
+        for (let i = 1; i <= above; i++) {
+          const w = Math.max(14, Math.round(baseW * Math.pow(scale, i - 1)));
+          const y = Math.round(centerY - (SMALL_HL / 2) - startGap - i * spacing);
+          const line = document.createElement('div');
+          line.style.cssText = `position:absolute; left:50%; transform:translateX(-50%); top:${y}px; height:4px; width:${w}px; background:${color.trim()}; opacity:${Math.max(0.25, 0.85 - i * 0.06)}; border-radius:3px;`;
+          indLayerL.appendChild(line);
+        }
+        for (let i = 1; i <= below; i++) {
+          const w = Math.max(14, Math.round(baseW * Math.pow(scale, i - 1)));
+          const y = Math.round(centerY + (SMALL_HL / 2) + startGap + i * spacing);
+          const line = document.createElement('div');
+          line.style.cssText = `position:absolute; left:50%; transform:translateX(-50%); top:${y}px; height:4px; width:${w}px; background:${color.trim()}; opacity:${Math.max(0.25, 0.85 - i * 0.06)}; border-radius:3px;`;
+          indLayerL.appendChild(line);
+        }
+      }
+
+      // --- Drag layers directly on canvas ---
+      let canvasDrag = null; // { id, startX, startY, layerStartX, layerStartY }
+      function hitTestCanvas(x, y) {
+        // iterate from top-most to bottom-most
+        for (let i = orderL.length - 1; i >= 0; i--) {
+          const L = layers[orderL[i]];
+          if (x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + L.h) {
+            return orderL[i]; // return layer index
+          }
+        }
+        return null;
+      }
+      function onCanvasDown(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+        const layerIdx = hitTestCanvas(x, y);
+        if (layerIdx == null) return;
+        const L = layers[layerIdx];
+        canvasDrag = { id: layerIdx, startX: x, startY: y, layerStartX: L.x, layerStartY: L.y };
+        canvas.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      }
+      function onCanvasMove(e) {
+        if (!canvasDrag) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+        const dx = x - canvasDrag.startX; const dy = y - canvasDrag.startY;
+        const L = layers[canvasDrag.id];
+        L.x = Math.max(0, Math.min(canvas.width - L.w, canvasDrag.layerStartX + dx));
+        L.y = Math.max(0, Math.min(canvas.height - L.h, canvasDrag.layerStartY + dy));
+        renderCanvas();
+        e.preventDefault();
+      }
+      function onCanvasUp(e) {
+        canvas.releasePointerCapture?.(e.pointerId);
+        canvasDrag = null;
+        e.preventDefault();
+      }
+      canvas.addEventListener('pointerdown', onCanvasDown, { passive: false });
+      canvas.addEventListener('pointermove', onCanvasMove, { passive: false });
+      canvas.addEventListener('pointerup', onCanvasUp, { passive: false });
+      canvas.addEventListener('pointercancel', onCanvasUp, { passive: false });
+    });
+  </script>
+  <style>
+    /* Color accents per item for visual separation */
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>Combo Lock Rolling Prototype</header>
+    <div class="stage">
+      <div class="lock" aria-label="Combo lock">
+        <div class="slotMarker"></div>
+        <div class="stack" aria-hidden="true"></div>
+      </div>
+      <div class="hud">Selected: <span id="selected">0</span></div>
+      <div class="controls">
+        <button class="btn" id="prev">Prev</button>
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="next">Next</button>
+      </div>
+      
+      <div style="height:24px"></div>
+      
+      <div>
+        <div class="lock lock-linear" aria-label="Linear combo lock 1..10">
+          <div class="slotMarker"></div>
+          <div class="stack stack-linear" aria-hidden="true"></div>
+        </div>
+        <div class="hud">Selected: <span id="selected2">1</span></div>
+        <div class="controls">
+          <button class="btn" id="prev2">Prev</button>
+          <button class="btn" id="reset2">Reset</button>
+          <button class="btn" id="next2">Next</button>
+        </div>
+      </div>
+
+      <div class="center-col">
+        <canvas id="layers-preview-canvas" width="720" height="640"></canvas>
+        <div class="lock lock-layers" aria-label="Layers combo lock">
+          <div class="slotMarker"></div>
+          <div class="stack stack-layers" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <footer>Drag up/down inside the lock. Short drags roll; release snaps to nearest.</footer>
+  </div>
+</body>
+</html>
+
+

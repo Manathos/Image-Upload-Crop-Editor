@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Fabric.js Layered Editor + Dropbox Upload</title>
+
+  <!-- Bootstrap & Icons -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+    rel="stylesheet"
+  />
+  <!-- CropperJS -->
+  <link
+    href="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.css"
+    rel="stylesheet"
+  />
+  <!-- Dropbox SDK -->
+  <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
+
+  <style>
+    :root {
+      --btn-color:      #f4a012;
+      --btn-text:       #fff;
+      --bg:             #fff;
+      --light-bg:       rgba(255,255,255,0.8);
+      --border:         #e0e0e0;
+      --text:           #000;
+      --select-overlay: rgba(244,160,18,0.25);
+      --select-border:  #f4a012;
+      --panel-bg:       #222;
+      --panel-text:     #ddd;
+      --canvas-bg:      #222;
+    }
+    .editor-modal {
+      position: relative;
+      background: url('Pattern Master black.png') center/cover no-repeat;
+    }
+    .editor-modal::before {
+      content:""; position:absolute; top:0; left:0; right:0; bottom:0;
+      background: var(--light-bg); pointer-events:none; z-index:0;
+    }
+    .btn {
+      background-color: var(--btn-color) !important;
+      border-color:     var(--btn-color) !important;
+      color:            var(--btn-text)  !important;
+      z-index:1;
+    }
+    
+    html, body { margin:0; height:100%; background: var(--bg); color: var(--text); }
+    .editor-overlay {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.5); display:none;
+      align-items:center; justify-content:center; z-index:1000;
+    }
+    .editor-modal {
+      width:95%; height:95%; display:flex;
+      border-radius:.5rem; padding:1rem;
+    }
+    #tool-panel, #side-panel-right {
+      width:225px; padding:.5rem;
+      background: var(--panel-bg) !important;
+      color: var(--panel-text);
+      border:1px solid var(--border);
+      display:flex; flex-direction:column; z-index:1;
+    }
+    #tool-panel h6, #side-panel-right h6,
+    #tool-panel label, #side-panel-right label {
+      color: var(--panel-text);
+    }
+    #layers-list {
+      flex:1; overflow-y:auto; margin:0; padding:0; list-style:none;
+    }
+    #layers-list li {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:.25rem .5rem; cursor:pointer; user-select:none;
+      background: rgba(255,255,255,0.1);
+      color: var(--panel-text);
+    }
+    #layers-list li.selected {
+      background: rgba(244,160,18,0.2);
+    }
+    #canvasSizeSelect { margin-top:.5rem; }
+    #canvas-container {
+      flex:1; position:relative; z-index:1;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; border:1px solid var(--border);
+    }
+    #canvas-wrapper { position:relative; }
+    #c {
+      border:8px solid var(--text);
+      max-width:100%; max-height:100%;
+      background-color: var(--canvas-bg);
+    }
+    .deadzone-edge {
+      position:absolute; pointer-events:none; z-index:2;
+      background-image:
+        repeating-linear-gradient(45deg, #000 0 1px, transparent 1px 4px),
+        repeating-linear-gradient(-45deg,#000 0 1px, transparent 1px 4px);
+      background-size:4px 4px;
+    }
+    .edge-top    { top:8px;    left:8px; right:8px;  height:2%; }
+    .edge-bottom { bottom:8px; left:8px; right:8px;  height:2%; }
+    .edge-left   { top:calc(8px+2%); bottom:calc(8px+2%); left:8px;   width:0.75%; }
+    .edge-right  { top:calc(8px+2%); bottom:calc(8px+2%); right:8px;  width:0.75%; }
+    .panel-section { display:none; }
+    .panel-section.active { display:block; }
+    #cropperOverlay {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.8); display:none;
+      align-items:center; justify-content:center; z-index:2000;
+    }
+    #cropperModal {
+      background: var(--bg); padding:1rem; border-radius:.5rem;
+      max-width:90; z-index:2001;
+    }
+    #cropperModal img { max-width:100%; max-height:80vh; }
+
+    /* Logo */
+    #brand-logo {
+      position: absolute; bottom:25px; left:50%;
+      transform: translateX(-50%);
+      width:400px; height:auto; z-index:1;
+      pointer-events: none;
+    }
+    /* Push save/upload buttons to bottom */
+    #side-panel-right .mt-auto { margin-top:auto; }
+    #layers-list li {
+  /* ...existing styles... */
+  user-select: none;
+  cursor: grab;
+  position: relative;
+}
+#layers-list li.dragging {
+  opacity: 0.7;
+  background: #e9e9e9 !important;
+}
+#layers-list li.dragover {
+  border-top: 2px solid #f4a012;
+}
+#layers-list li.dragover-above {
+  border-top: 8px solid #f4a012;
+  box-shadow: 0 -2px 10px #f4a01233;
+  position: relative;
+  z-index: 10;
+}
+#layers-list li.dragover-below {
+  border-bottom: 8px solid #f4a012;
+  box-shadow: 0 2px 10px #f4a01233;
+  position: relative;
+  z-index: 10;
+}
+#cropperOverlay {
+  /* ... already has display:flex, etc ... */
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+#cropperModal {
+  background: var(--bg, #fff);
+  padding: 1rem;
+  border-radius: .5rem;
+  max-width: 90vw;      /* Allow a little margin on the sides */
+  max-height: 94vh;
+  overflow: auto;       /* Scrollbars if needed */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#cropperModal img, #cropImage {
+  max-width: 85%;      /* Image will never exceed modal width */
+  max-height: 70vh;     /* Stay below 70% of viewport height */
+  width: auto;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+#proofCanvas {
+  max-width: 90vw;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+
+  </style>
+</head>
+
+
+<body>
+  <button id="open-editor" class="btn m-3">Open Image Editor</button>
+
+  <div class="editor-overlay" id="editorOverlay">
+    <div class="editor-modal">
+
+      <!-- LEFT PANEL -->
+      <div id="tool-panel">
+        <button id="btn-upload" class="btn mb-2">Upload Image</button>
+        <input type="file" id="fileInput" accept="image/*" style="display:none"/>
+        <button id="btn-add-text" class="btn mb-2">Add Text</button>
+        <hr style="border-color: var(--border)" />
+        <button id="btn-deselect" class="btn btn-sm mb-2" title="Deselect Everything">Deselect</button>
+        <button id="btn-proof" class="btn mb-2 w-100">Show Proof</button>
+
+
+        <h6>Layers</h6>
+        <ul id="layers-list"></ul>
+        <h6 class="mt-2">Canvas Aspect</h6>
+        <select id="canvasSizeSelect" class="form-select form-select-sm">
+  <option value="77:29">77 : 29 — EXTENDED</option>
+  <option value="43:18">43 : 18 — IMMERSIVE</option>
+  <option value="60:36">61 : 36 — LAPTOP / PLAYMAT</option>
+  <option value="96:41">96 : 41 — FULL SIZE</option>
+  <option value="101:51">61 : 36 — SUPER SIZE</option>
+</select>
+
+        <div class="mt-3 d-flex gap-1">
+          <button id="btn-up" class="btn flex-fill">Up</button>
+          <button id="btn-down" class="btn flex-fill">Down</button>
+        </div>
+      </div>
+
+      <!-- CANVAS AREA -->
+      <div id="canvas-container">
+        <div id="canvas-wrapper">
+          <canvas id="c" width="800" height="300"></canvas>
+          <div class="deadzone-edge edge-top"></div>
+          <div class="deadzone-edge edge-bottom"></div>
+          <div class="deadzone-edge edge-left"></div>
+          <div class="deadzone-edge edge-right"></div>
+        </div>
+      </div>
+    <div id="proofModal"
+     style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+            z-index:5000; align-items:center; justify-content:center;
+            background:rgba(0,0,0,0.8); /* no display:flex here, because display:none initially */">
+  <div style="position:relative; background:#222; border-radius:18px; box-shadow:0 8px 36px #0005;
+              padding:20px 20px 8px 20px; max-width:95vw; max-height:90vh;
+              display:flex; flex-direction:column; align-items:center;">
+    <canvas id="proofCanvas"
+            style="max-width:90vw; max-height:70vh; border-radius:12px; background:#222; width:100%; height:auto; display:block;"></canvas>
+    <button onclick="document.getElementById('proofModal').style.display='none'"
+            style="margin:20px auto 0 auto; padding:8px 32px;" class="btn btn-light">Close</button>
+  </div>
+</div>
+
+
+
+
+
+
+      <!-- RIGHT PANEL -->
+       <div id="side-panel-right">
+  <div id="dpiWarningSidebar" style="display:none; margin: 36px auto 14px auto; background:#f4a012; color:#fff; border-radius:12px; padding:.7em 1.1em; max-width:200px; text-align:center; font-size:0.97rem; box-shadow:0 1px 10px rgba(0,0,0,0.1);">
+    <span id="dpiWarningSidebarMsg"></span>
+  </div>
+        <h6>Properties</h6>
+        <div id="sidebarLayerInfo" style="margin-bottom:12px; text-align:center; color:var(--panel-text); font-size:0.99em;"></div>
+        <div id="textControls" class="panel-section">
+          <label>Text</label>
+          <textarea id="textInput" class="form-control form-control-sm mb-2" rows="4"></textarea>
+          <label>Font Family</label>
+          <select id="fontFamily" class="form-select form-select-sm mb-2">
+            <option>Arial</option><option>Helvetica</option>
+            <option>Times New Roman</option><option>Courier New</option>
+          </select>
+          <label>Font Size</label>
+          <input type="number" id="fontSize" class="form-control form-control-sm mb-2" value="24"/>
+          <label>Color</label>
+          <input type="color" id="fontColor" class="form-control form-control-sm mb-2" value="#000000"/>
+          <div class="d-flex gap-1 mb-2">
+            <button id="btn-bold" class="btn btn-sm">B</button>
+            <button id="btn-italic" class="btn btn-sm">I</button>
+          </div>
+          <div class="d-flex gap-1 mb-2">
+            <button id="btn-ok-text" class="btn btn-sm flex-fill">OK</button>
+            <button id="btn-close-text" class="btn btn-sm flex-fill">Cancel</button>
+          </div>
+        </div>
+        <div id="imageControls" class="panel-section">
+  <!-- ...existing image controls... -->
+  <button id="btn-crop" class="btn mb-2 w-100">Crop Selected</button>
+  <button id="btn-fill" class="btn mb-2 w-100" title="Fill the canvas with this image">Fill Selected</button>
+  <button id="btn-reset-image" class="btn mb-2 w-100" title="Revert to original import size and position">Reset Image</button>
+
+</div>
+
+
+
+        <div class="mt-auto">
+          <button id="btn-save" class="btn mb-2 w-100">Save Image</button>
+          <button id="btn-upload-dropbox" class="btn w-100">Upload to Dropbox</button>
+        </div>
+      </div>
+
+      <img id="brand-logo" src="Paddash Logo.png" alt="Paddash Logo" />
+    </div>
+  </div>
+
+  <!-- CROPPER OVERLAY -->
+  <div id="cropperOverlay">
+    <div id="cropperModal">
+      <img id="cropImage" src="" />
+      <div class="mt-2 text-end">
+        <button id="applyCrop" class="btn">Apply</button>
+        <button id="cancelCrop" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <!-- SCRIPTS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <script src="https://unpkg.com/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script>
+    // ——— Fabric setup ———
+    const canvas = new fabric.Canvas('c',{ preserveObjectStacking:true, targetFindTolerance:2 });
+    canvas.selectionColor       = getComputedStyle(document.documentElement).getPropertyValue('--select-overlay');
+    canvas.selectionBorderColor = getComputedStyle(document.documentElement).getPropertyValue('--select-border');
+    canvas.selectionLineWidth   = 2;
+    fabric.Object.prototype.borderColor        = canvas.selectionBorderColor;
+    fabric.Object.prototype.cornerColor        = canvas.selectionBorderColor;
+    fabric.Object.prototype.cornerStrokeColor  = canvas.selectionBorderColor;
+    fabric.Object.prototype.transparentCorners = false;
+    fabric.Object.prototype.cornerStyle        = 'circle';
+    fabric.Object.prototype.cornerSize         = 12;
+    fabric.Object.prototype.cornerHitTolerance = 8;
+    fabric.Object.prototype.padding            = 4;
+
+    const snapThreshold = 10;
+    let cropper, selImg, cropBounds;
+
+function saveRestorePoint(o) {
+  if (!o || o.type !== 'image') return;
+  o._restorePoint = {
+    left: o.left,
+    top: o.top,
+    scaleX: o.scaleX,
+    scaleY: o.scaleY,
+    angle: o.angle,
+    originX: o.originX,
+    originY: o.originY
+  };
+}
+    function handleImageFile(file) {
+  const url = URL.createObjectURL(file);
+  fabric.Image.fromURL(url, img => {
+    img._sourceName = file.name.split(/[/\\]/).pop().slice(0,12);
+    img.name = img._sourceName;
+    const scale = Math.min(canvas.getWidth()/img.width, canvas.getHeight()/img.height, 1);
+    img.set({
+      left: canvas.getWidth()/2, top: canvas.getHeight()/2,
+      originX: 'center', originY: 'center',
+      scaleX: scale, scaleY: scale,
+      lockUniScaling: true
+    });
+
+    img._originalProps = {
+  left: canvas.getWidth() / 2,
+  top: canvas.getHeight() / 2,
+  scaleX: scale,
+  scaleY: scale,
+  width: img.width,
+  height: img.height
+};
+document.getElementById('btn-reset-image').onclick = () => {
+  const o = canvas.getActiveObject();
+  if (!o || o.type !== 'image' || !o._originalProps) return;
+  o.set({
+    left: o._originalProps.left,
+    top: o._originalProps.top,
+    scaleX: o._originalProps.scaleX,
+    scaleY: o._originalProps.scaleY,
+    originX: 'center',
+    originY: 'center'
+  });
+  canvas.requestRenderAll();
+  updateSidebar();
+};
+
+    canvas.add(img).setActiveObject(img);
+    refreshLayers();
+    updateSidebar(); // This will trigger the DPI warning!
+    URL.revokeObjectURL(url);
+  });
+}
+
+// Place this OUTSIDE any other function
+function warnIfLowDPI(imgObj) {
+  const deskPadWidthInches = 31.5;
+  const imgWidthOnCanvasPx = imgObj.getScaledWidth();
+  const canvasWidthPx = canvas.getWidth();
+  const printWidthInches = deskPadWidthInches * (imgWidthOnCanvasPx / canvasWidthPx);
+  const effectiveDPI = imgObj._element.naturalWidth / printWidthInches;
+
+  const msgBox = document.getElementById('dpiWarningSidebar');
+  let color = '#f4a012'; // normal warning color
+  let text = '';
+
+  if (effectiveDPI < 50) {
+    color = '#e53935'; // red
+    text = `<b>Very Low Image Quality</b><br>
+      <span style="font-size:1.2em;">${Math.round(effectiveDPI)} DPI</span><br>
+      <span style="font-size:0.95em;">This will look extremely pixelated. Try a higher-res image.</span>`;
+  } else if (effectiveDPI < 100) {
+    color = '#f4a012'; // warning orange
+    text = `<b>Low Image Quality</b><br>
+      <span style="font-size:1.2em;">${Math.round(effectiveDPI)} DPI</span><br>
+      <span style="font-size:0.95em;">Recommended: 100+ DPI for best print.</span>`;
+  } else {
+    msgBox.style.display = 'none';
+    return;
+  }
+
+  document.getElementById('dpiWarningSidebarMsg').innerHTML = text;
+  msgBox.style.display = 'block';
+  msgBox.style.background = color;
+}
+
+
+
+canvas.on('object:scaling', function(e) {
+  const o = e.target;
+  if (o && o.type === 'image') warnIfLowDPI(o);
+});
+
+
+
+    // Open editor
+    document.getElementById('open-editor').onclick = ()=>{
+      document.getElementById('editorOverlay').style.display='flex';
+      applyAspect('77:29');
+      refreshLayers();
+    };
+
+    // Upload local
+    document.getElementById('btn-upload').onclick = ()=>document.getElementById('fileInput').click();
+    document.getElementById('fileInput').onchange = e=>e.target.files[0] && handleImageFile(e.target.files[0]);
+
+    // Drag & drop
+    const dropArea=document.getElementById('canvas-container');
+    ['dragenter','dragover'].forEach(evt=>dropArea.addEventListener(evt,e=>{e.preventDefault();dropArea.style.opacity=.7}));
+    ['dragleave','drop'].forEach(evt=>dropArea.addEventListener(evt,e=>{e.preventDefault();dropArea.style.opacity=1}));
+    dropArea.addEventListener('drop',e=>{
+      const f=e.dataTransfer.files[0];
+      if(f&&f.type.startsWith('image/')) handleImageFile(f);
+    });
+
+    // Snap
+    canvas.on('object:moving',e=>{
+      const o=e.target,w=o.getScaledWidth(),h=o.getScaledHeight();
+      if(Math.abs(o.left-w/2)<snapThreshold)o.left=w/2;
+      if(Math.abs(o.top-h/2)<snapThreshold) o.top=h/2;
+      const rx=canvas.getWidth()-w/2; if(Math.abs(o.left-rx)<snapThreshold)o.left=rx;
+      const by=canvas.getHeight()-h/2; if(Math.abs(o.top-by)<snapThreshold)o.top=by;
+    });
+
+    // Aspect ratios
+    function applyAspect(val){
+      const [wR,hR]=val.split(':').map(Number),
+            cont=document.getElementById('canvas-container'),
+            cEl=document.getElementById('c');
+      let newW=cont.clientWidth,newH=newW*hR/wR;
+      if(newH>cont.clientHeight){newH=cont.clientHeight;newW=newH*wR/hR;}
+      cEl.width=newW; cEl.height=newH;
+      canvas.setWidth(newW); canvas.setHeight(newH);
+      canvas.renderAll();
+    }
+    document.getElementById('canvasSizeSelect').onchange=e=>applyAspect(e.target.value);
+
+    function refreshLayers() {
+  const ul = document.getElementById('layers-list');
+  ul.innerHTML = '';
+
+  // Topmost layers first
+  const objs = canvas.getObjects().slice().reverse();
+
+  objs.forEach((o, idx) => {
+    const li = document.createElement('li');
+    li._obj = o;
+
+    // --- VISIBILITY BUTTON ---
+    const vis = document.createElement('i');
+    vis.className = o.visible === false ? 'bi bi-eye-slash text-secondary' : 'bi bi-eye text-secondary';
+    vis.title = o.visible === false ? 'Show Layer' : 'Hide Layer';
+    vis.style.marginRight = '0.5em';
+    vis.style.cursor = 'pointer';
+    vis.onclick = ev => {
+      ev.stopPropagation();
+      o.visible = o.visible === false ? true : false;
+      o.set({ opacity: o.visible ? 1 : 0 });
+      canvas.requestRenderAll();
+      refreshLayers();
+      updateSidebar();
+    };
+
+    // --- LOCK BUTTON ---
+    const lock = document.createElement('i');
+    lock.className = o.lockMovementX ? 'bi bi-lock-fill text-secondary' : 'bi bi-unlock text-secondary';
+    lock.title = o.lockMovementX ? 'Unlock Layer' : 'Lock Layer';
+    lock.style.marginRight = '0.5em';
+    lock.style.cursor = 'pointer';
+    lock.onclick = ev => {
+      ev.stopPropagation();
+      const locked = !o.lockMovementX;
+      o.lockMovementX = o.lockMovementY = o.lockScalingX = o.lockScalingY = o.lockRotation = locked;
+      refreshLayers();
+      updateSidebar();
+    };
+
+    // --- DUPLICATE BUTTON ---
+    const dup = document.createElement('i');
+    dup.className = 'bi bi-files text-primary';
+    dup.style.marginLeft = '0.6em';
+    dup.style.marginRight = '0.2em';
+    dup.style.cursor = 'pointer';
+    dup.title = 'Duplicate Layer';
+    dup.onclick = function(ev) {
+      ev.stopPropagation();
+      if (!canvas.getObjects().includes(o)) return;
+      o.clone(function(clone) {
+        if (!clone) {
+          alert('Sorry, this image cannot be duplicated (possibly a local file was removed). Try re-uploading the image.');
+          return;
+        }
+        clone.set({
+          left: (o.left || 0) + 24,
+          top: (o.top || 0) + 24,
+          name: (o.name || 'Layer') + ' (copy)'
+        });
+        canvas.add(clone).setActiveObject(clone);
+        refreshLayers();
+        updateSidebar();
+      });
+    };
+
+    // --- DELETE BUTTON ---
+    const del = document.createElement('i');
+    del.className = 'bi bi-trash-fill text-danger';
+    del.style.cursor = 'pointer';
+    del.title = 'Delete Layer';
+    del.onclick = ev => {
+      ev.stopPropagation();
+      canvas.remove(o);
+      refreshLayers();
+      updateSidebar();
+    };
+
+    // --- LAYER NAME (with inline rename) ---
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = o.name || (o.type === 'image' ? o._sourceName || 'Image' : 'Text');
+    nameSpan.style.cursor = 'pointer';
+    nameSpan.title = 'Double-click to rename layer';
+
+    // Double-click to rename
+    nameSpan.ondblclick = function(ev) {
+      ev.stopPropagation();
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = o.name || '';
+      input.style.width = '85%';
+      input.style.fontSize = '1em';
+      input.style.borderRadius = '5px';
+      input.style.padding = '1px 4px';
+      input.maxLength = 25;
+
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          finishRename();
+        } else if (e.key === 'Escape') {
+          li.replaceChild(nameSpan, input);
+        }
+      };
+      input.onblur = finishRename;
+
+      function finishRename() {
+        o.name = input.value.trim().slice(0, 12); // Restrict to 12 chars
+        li.replaceChild(nameSpan, input);
+        refreshLayers();
+        updateSidebar();
+      }
+
+      li.replaceChild(input, nameSpan);
+      input.focus();
+      input.select();
+    };
+
+    // --- DRAG-AND-DROP ---
+li.setAttribute('draggable', true);
+
+li.ondragstart = function(e) {
+  li.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', idx);
+};
+
+li.ondragend = function(e) {
+  li.classList.remove('dragging');
+  ul.querySelectorAll('.dragover-above, .dragover-below').forEach(li2 => li2.classList.remove('dragover-above', 'dragover-below'));
+};
+
+li.ondragover = function(e) {
+  e.preventDefault();
+  const overElem = e.currentTarget;
+  const bounds = overElem.getBoundingClientRect();
+  const relY = e.clientY - bounds.top;
+  const midpoint = bounds.height / 2;
+
+  if (relY < midpoint) {
+    overElem.classList.add('dragover-above');
+    overElem.classList.remove('dragover-below');
+  } else {
+    overElem.classList.add('dragover-below');
+    overElem.classList.remove('dragover-above');
+  }
+};
+
+li.ondragleave = function(e) {
+  e.currentTarget.classList.remove('dragover-above', 'dragover-below');
+};
+
+li.ondrop = function(e) {
+  e.preventDefault();
+  const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+  let toIdx = idx;
+
+  // If dropping below, and moving the item downward in the list,
+  // we need to account for the removal of the item above (so subtract 1)
+  if (li.classList.contains('dragover-below')) {
+    toIdx++;
+    if (fromIdx < toIdx) toIdx--; // Corrects "jump too far down"
+  }
+
+  ul.querySelectorAll('.dragover-above, .dragover-below').forEach(li2 => li2.classList.remove('dragover-above', 'dragover-below'));
+  reorderLayers(fromIdx, toIdx);
+};
+
+
+
+    // --- APPEND ORDER ---
+    li.appendChild(vis);
+    li.appendChild(lock);
+    li.appendChild(nameSpan);
+    li.appendChild(dup);
+    li.appendChild(del);
+
+    // Highlight active
+    if (o === canvas.getActiveObject()) li.classList.add('selected');
+    // Gray if hidden
+    if (o.visible === false) li.style.opacity = '0.55';
+    else li.style.opacity = '1';
+
+    // Click to select
+    li.onclick = () => {
+      canvas.setActiveObject(o);
+      canvas.requestRenderAll();
+      updateSidebar();
+    };
+
+    ul.appendChild(li);
+  });
+}
+
+// --- Proof PNG mapping ---
+const ASPECT_TO_PROOF = {
+  '77:29': 'proof_extended.png',
+  '43:18': 'proof_immersive.png',
+  '60:36': 'proof_laptop.png',
+  '96:41': 'proof_fullsize.png',
+  '101:51': 'proof_supersize.png'
+};
+
+function getCurrentProofImage() {
+  const aspect = document.getElementById('canvasSizeSelect').value;
+  return ASPECT_TO_PROOF[aspect] || 'proof_extended.png';
+}
+
+document.getElementById('btn-proof').onclick = async function() {
+  const proofURL = getCurrentProofImage();
+  const proofImg = await loadImage(proofURL);
+
+  // --- 1. COVER EXPORT LOGIC ---
+  const w = proofImg.width, h = proofImg.height;
+  const temp = document.createElement('canvas');
+  temp.width = w; temp.height = h;
+  const tctx = temp.getContext('2d');
+
+  const userAR = canvas.getWidth() / canvas.getHeight();
+  const proofAR = w / h;
+  let drawW, drawH, drawX, drawY;
+  if (userAR > proofAR) {
+    drawH = h;
+    drawW = h * userAR;
+    drawX = (w - drawW) / 2;
+    drawY = 0;
+  } else {
+    drawW = w;
+    drawH = w / userAR;
+    drawX = 0;
+    drawY = (h - drawH) / 2;
+  }
+  tctx.drawImage(canvas.lowerCanvasEl, drawX, drawY, drawW, drawH);
+
+  const userImgURL = temp.toDataURL('image/png');
+  const userImg = await loadImage(userImgURL);
+
+  // --- 2. Draw user design ---
+  const workCanvas = document.createElement('canvas');
+  workCanvas.width = w; workCanvas.height = h;
+  const ctx = workCanvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(userImg, 0, 0, w, h);
+
+  // --- 3. Mask out areas outside the proof PNG alpha ---
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = w; maskCanvas.height = h;
+  maskCanvas.getContext('2d').drawImage(proofImg, 0, 0, w, h);
+  const maskAlpha = maskCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const compData = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < compData.data.length; i += 4) {
+    compData.data[i + 3] = Math.round(compData.data[i + 3] * (maskAlpha[i + 3] / 255));
+  }
+  ctx.putImageData(compData, 0, 0);
+
+  // --- 4. Overlay pad PNG multiple times with different blend/opacity ---
+
+// First pass: multiply (gives shadows)
+ctx.save();
+ctx.globalAlpha = 1.0;
+ctx.globalCompositeOperation = "overlay";
+ctx.drawImage(proofImg, 0, 0, w, h);
+ctx.restore();
+
+// Second pass: overlay (gives punchy highlight)
+ctx.save();
+ctx.globalAlpha = 1.0;
+ctx.globalCompositeOperation = "overlay";
+ctx.drawImage(proofImg, 0, 0, w, h);
+ctx.restore();
+
+// Third pass: normal, just a faint top highlight/border
+ctx.save();
+ctx.globalAlpha = 1.0;
+ctx.globalCompositeOperation = "overlay";
+ctx.drawImage(proofImg, 0, 0, w, h);
+ctx.restore();
+
+  // --- 5. Draw result to modal's proofCanvas ---
+  const proofCanvas = document.getElementById('proofCanvas');
+  proofCanvas.width = w; proofCanvas.height = h;
+  const proofCtx = proofCanvas.getContext('2d');
+  proofCtx.clearRect(0, 0, w, h);
+  proofCtx.drawImage(workCanvas, 0, 0, w, h);
+  document.getElementById('proofModal').style.display = 'flex';
+};
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+   function updateSidebar() {
+  const o = canvas.getActiveObject();
+
+  // Show or hide controls
+  document.getElementById('textControls').classList.toggle('active', o?.type === 'i-text');
+  document.getElementById('imageControls').classList.toggle('active', o?.type === 'image');
+
+  // --- Layer Info ---
+  const layerInfo = document.getElementById('sidebarLayerInfo');
+  if (o) {
+    let info = '';
+    if (o.type === 'image') {
+      const deskPadWidthInches = 31.5;
+      const imgWidthOnCanvasPx = o.getScaledWidth();
+      const canvasWidthPx = canvas.getWidth();
+      const printWidthInches = deskPadWidthInches * (imgWidthOnCanvasPx / canvasWidthPx);
+      const effectiveDPI = o._element.naturalWidth / printWidthInches;
+      info = `<b>Layer:</b> Image <span style="color:#f4a012;">${o.name || '(unnamed)'}</span><br><b>DPI:</b> ${Math.round(effectiveDPI)}`;
+    } else if (o.type === 'i-text') {
+      info = `<b>Layer:</b> Text`;
+    } else {
+      info = `<b>Layer:</b> ${o.type || 'Unknown'}`;
+    }
+    layerInfo.innerHTML = info;
+    layerInfo.style.display = 'block';
+  } else {
+    // Nothing selected
+    layerInfo.innerHTML = '';
+    layerInfo.style.display = 'none';
+  }
+
+  // Update text controls if editing text
+  if (o?.type === 'i-text') {
+    document.getElementById('textInput').value = o.text;
+    document.getElementById('fontFamily').value = o.fontFamily;
+    document.getElementById('fontSize').value = o.fontSize;
+    document.getElementById('fontColor').value = o.fill;
+  }
+
+  // Update DPI warning for images
+  if (o?.type === 'image') {
+    warnIfLowDPI(o);
+  } else {
+    document.getElementById('dpiWarningSidebar').style.display = 'none';
+  }
+
+  // Highlight layer in list
+  document.querySelectorAll('#layers-list li').forEach(li =>
+    li.classList.toggle('selected', li._obj === o)
+  );
+}
+
+
+    // Z-order
+    document.getElementById('btn-up').onclick=()=>{
+      const o=canvas.getActiveObject();
+      if(o){ canvas.bringForward(o); canvas.renderAll(); refreshLayers(); updateSidebar(); }
+    };
+    document.getElementById('btn-down').onclick=()=>{
+      const o=canvas.getActiveObject();
+      if(o){ canvas.sendBackwards(o); canvas.renderAll(); refreshLayers(); updateSidebar(); }
+    };
+
+    // Add text
+    document.getElementById('btn-add-text').onclick=()=>{
+      const t=new fabric.IText('Edit me',{
+        left:canvas.getWidth()/2, top:canvas.getHeight()/2,
+        originX:'center', originY:'center',
+        fontSize:24, fill:'#000', fontFamily:'Arial'
+      });
+      t.name='Text';
+      canvas.add(t).setActiveObject(t);
+      refreshLayers(); updateSidebar();
+    };
+
+    // Crop & Fill
+    document.getElementById('btn-crop').onclick=()=>{
+      const o=canvas.getActiveObject(); if(!o||o.type!=='image')return;
+      selImg=o; cropBounds=o.getBoundingRect();
+      document.getElementById('cropImage').src=o.toDataURL({withoutTransform:true});
+      document.getElementById('cropperOverlay').style.display='flex';
+      cropper=new Cropper(document.getElementById('cropImage'),{viewMode:1});
+    };
+    document.getElementById('applyCrop').onclick=()=>{
+      cropper.getCroppedCanvas().toBlob(blob=>{
+        const url=URL.createObjectURL(blob);
+        selImg.setSrc(url,()=>{
+          const w=cropper.getCroppedCanvas().width, s=cropBounds.width/w;
+          selImg.set({
+            left:cropBounds.left+cropBounds.width/2,
+            top:cropBounds.top+cropBounds.height/2,
+            originX:'center', originY:'center',
+            scaleX:s, scaleY:s
+          });
+          canvas.renderAll(); cropper.destroy();
+          document.getElementById('cropperOverlay').style.display='none';
+          refreshLayers(); updateSidebar();
+          URL.revokeObjectURL(url);
+        });
+      });
+    };
+    document.getElementById('cancelCrop').onclick=()=>{cropper.destroy();document.getElementById('cropperOverlay').style.display='none';};
+    document.getElementById('btn-fill').onclick = () => {
+  const o = canvas.getActiveObject();
+  if (!o || o.type !== 'image') return;
+  // Fill, preserving original image aspect ratio
+  const cw = canvas.getWidth(), ch = canvas.getHeight();
+  const imgAR = o.width / o.height;
+  const canvasAR = cw / ch;
+  let scale;
+  if (imgAR > canvasAR) {
+    // Image is wider than canvas: fit to canvas height
+    scale = ch / o.height;
+  } else {
+    // Image is taller: fit to canvas width
+    scale = cw / o.width;
+  }
+  o.set({
+    scaleX: scale,
+    scaleY: scale,
+    left: cw / 2,
+    top: ch / 2,
+    originX: 'center',
+    originY: 'center'
+  });
+  canvas.requestRenderAll();
+  updateSidebar();
+};
+
+
+    // Save locally
+    document.getElementById('btn-save').onclick=()=>{
+      const dataURL=canvas.toDataURL({format:'png'});
+      const link=document.createElement('a');
+      link.href=dataURL; link.download='canvas.png'; link.click();
+    };
+
+    // ——— Dropbox upload ———
+    const DROPBOX_ACCESS_TOKEN = '<sl.u.AF0woVY22q9nl1KgPkQYTvhCYtYmLFuzBodX8w4wrRO5kpiC0-CEVnCZ4VtqLA5M_Y7NKnqElAG8BrOxPEhJ8H6RWG_ysve-Tl6CX6QvJVIOeqbCSjBzkbJxOT9XLcyq9g6rSlSQcFoRJQi4u0BsYLYB1r4efn-tJIr1pn7864ZSXpWgVVbTcT6IjUIrv4f5f9vVBHeDNjQFqAqf1ZIFqSGruxpsvffotMxfWlv8ZlTnz__uiALtrpLWGFVBqQK-P94YhcB2jaQfLcpLeip1pOPrAy5ibZ4Bs_EU0OyRJfgUYMi4WkyPQwIn-dqEy-ocM-VvJ-yRxtuSCBbIltjaNKDeT5gmsGs5xono55GV_KNBxmNz-pMHPdYHEpiKkT6iRs_VNpwLlXs7xuGfKzwDTJh7fjrlJHdKKZn5AzVJP3ZUzpD5JjDyjgJwSyhaXxjm2Ab2dP1VTEA5XMYC_qzU3fXfm1vsPJ8DABJsfiUjyVWyFBcelYHPp9cxC1XZuIYFII7qu9OeepH05LyIyXjYWkpXjeGkUjPE45lquXXRSTc52gQuPN5zv5Mn_h__cx7aScM8N_GBD7jCx3txL-7yO02E0MNBWzx04aiTdAl6-M6pTodMVLUV5b03G5a9gjWhQuQUY8-zOj0-ZwfTUgMmchc3pgJVtUatWWi9S6JtpaS7bgfpQK6svrahK-e1N3T7esfcZiyfOZf81rWQ1g_5vABgxR8xI2vK4r1KMMw2dHc35MiBbVhpxsD6M1C-PMUGn6IXzbekcB5RJHjcadCRyvxIkCFqUApviA9IFo-e-vlc66qjLErQLrTTNjQtQXWJW0lVmn5oB6AiNjU_O0WZz-VmBx3gWsVXOgOse9smycDLkauFrYj_6sPGHS4qhrXQNeRnxtODQeKmFVX5aMzXmmKDXGGMjyTXcm4umkxE_4Mc5jd1EKHC0g1L8hus67Zhj2WofkaMR67gkbmU7fh8rH1XBC8ZI8titjrqDCJP3QzxR__AKv2DsgX1f8OJD46_DAT7TiLCcgw6UPgpUvXIIppGVP1Iewi3K2Asiu8ImeNNoCDPBHceUgkB8v6rE8X4t0guJF_Y8URvGxOLha3wXuBxW5oS0Sxyav2qZuU5ObURt_lJ9bSdrkNJI4k740TfJHgXEGJ1-l8mBNpVNAKqEpmOz3uLds20PRJqqkL5PbG6AB2K5TqoNfcoZFJR7tSuM1IZWH40HW4ftRzpWIWNzjM-MVkXA7ZgaGiGg5fPPIoDx7l_3NI5M6v0TkVTHpqq7rIKrcG7hhpzStWQt8D_BFg_RGiu9B7bAllMDZL6yVKPLdpxmRstBQegVkk6cE_8krXyvG6I7gMla6kLJlyawajIxY96BkGR4PacUYTW7nt0tt7aozlD67D2LVb2UTVGHy4>';
+    const dbx = new Dropbox.Dropbox({ fetch, accessToken: DROPBOX_ACCESS_TOKEN });
+
+    document.getElementById('btn-upload-dropbox').onclick = ()=>{
+      canvas.discardActiveObject(); canvas.renderAll();
+      canvas.getElement().toBlob(blob=>{
+        const filename = '/paddash-upload-' + Date.now() + '.png';
+        dbx.filesUpload({ path: filename, contents: blob })
+          .then(res=> alert('✅ Uploaded as ' + res.name))
+          .catch(err=> alert('❌ Upload failed: ' + err.error_summary));
+      });
+    };
+
+    // Text toolbar
+    document.getElementById('textInput').oninput=()=>{
+      const o=canvas.getActiveObject();
+      if(o?.type==='i-text'){ o.text=document.getElementById('textInput').value; canvas.requestRenderAll(); }
+    };
+    ['fontFamily','fontSize','fontColor'].forEach(id=>{
+      document.getElementById(id).onchange=()=>{
+        const o=canvas.getActiveObject();
+        if(o?.type==='i-text'){
+          if(id==='fontSize') o.fontSize=parseInt(document.getElementById(id).value,10);
+          else o[id]=document.getElementById(id).value;
+          canvas.requestRenderAll();
+        }
+      };
+    });
+    document.getElementById('btn-bold').onclick=()=>{
+      const o=canvas.getActiveObject();
+      if(o?.type==='i-text'){ o.fontWeight=o.fontWeight==='bold'?'normal':'bold'; canvas.requestRenderAll(); }
+    };
+    document.getElementById('btn-italic').onclick=()=>{
+      const o=canvas.getActiveObject();
+      if(o?.type==='i-text'){ o.fontStyle=o.fontStyle==='italic'?'normal':'italic'; canvas.requestRenderAll(); }
+    };
+    document.getElementById('btn-ok-text').onclick=()=>canvas.discardActiveObject().requestRenderAll();
+    document.getElementById('btn-close-text').onclick=()=>{
+      canvas.discardActiveObject(); refreshLayers(); updateSidebar();
+    };
+
+    canvas.on('selection:created',updateSidebar);
+    canvas.on('selection:updated',updateSidebar);
+    canvas.on('selection:cleared',()=>{
+      document.getElementById('textControls').classList.remove('active');
+      document.getElementById('imageControls').classList.remove('active');
+      document.querySelectorAll('#layers-list li').forEach(li=>li.classList.remove('selected'));
+    });
+    canvas.on('selection:created', function() {
+  const o = canvas.getActiveObject();
+  if (o && o.type === 'image') saveRestorePoint(o);
+});
+
+
+  canvas.on('selection:created', function(e) {
+  console.log('selection:created', e);
+  const o = canvas.getActiveObject();
+  if (o && o.type === 'image') saveRestorePoint(o);
+  updateSidebar();
+
+});
+canvas.on('selection:cleared', () => {
+  document.getElementById('textControls').classList.remove('active');
+  document.getElementById('imageControls').classList.remove('active');
+  document.getElementById('dpiWarningSidebar').style.display = 'none';
+  document.getElementById('sidebarLayerInfo').innerHTML = '';
+  document.getElementById('sidebarLayerInfo').style.display = 'none';
+  document.querySelectorAll('#layers-list li').forEach(li => li.classList.remove('selected'));
+});
+
+document.addEventListener('keydown', function(e) {
+  if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    const o = canvas.getActiveObject();
+    if (o) {
+      canvas.remove(o);
+      refreshLayers();
+      updateSidebar();
+    }
+  }
+});
+document.getElementById('btn-deselect').onclick = () => {
+  canvas.discardActiveObject();
+  canvas.requestRenderAll();
+  updateSidebar();
+};
+
+function reorderLayers(fromIdx, toIdx) {
+  // Fabric stack: bottom = 0, top = N-1; layer list: top = 0, bottom = N-1
+  const objs = canvas.getObjects();
+  const from = objs.length - 1 - fromIdx;
+  const to = objs.length - 1 - toIdx;
+  const obj = objs[from];
+
+  if (from === to) return;
+  objs.splice(from, 1);
+  objs.splice(to, 0, obj);
+  canvas._objects = objs;
+  canvas.requestRenderAll();
+  refreshLayers();
+  updateSidebar();
+}
+document.addEventListener('keydown', function(e) {
+  if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+  const o = canvas.getActiveObject();
+  if (!o || o.type !== 'image') return;
+  if (e.key === 'Enter') {
+    saveRestorePoint(o);
+    // Optionally show a toast
+  } else if (e.key === 'Escape' && o._restorePoint) {
+    o.set({ ...o._restorePoint });
+    canvas.requestRenderAll();
+    updateSidebar();
+  }
+});
+
+
+  </script>
+</body>
+</html>

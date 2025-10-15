@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy System Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #canvas-container {
+            border: 2px solid #ddd;
+            margin: 20px 0;
+            display: inline-block;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Proxy System Test</h1>
+        <p>This page tests the proxy system for high-resolution export functionality.</p>
+
+        <div class="test-section">
+            <h3>1. System Status</h3>
+            <button onclick="checkSystemStatus()">Check Proxy System Status</button>
+            <div id="status-display"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Canvas Setup</h3>
+            <div style="margin-bottom: 15px;">
+                <label for="aspect-ratio-select" style="font-weight: bold; margin-right: 10px;">Pad Size:</label>
+                <select id="aspect-ratio-select" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px;" onchange="updateCanvasAspectRatio()">
+                    <option value="77:29">77:29 — EXTENDED</option>
+                    <option value="43:18">43:18 — IMMERSIVE</option>
+                    <option value="61:36">61:36 — LAPTOP / PLAYMAT</option>
+                    <option value="96:41">96:41 — FULL SIZE</option>
+                    <option value="101:51">101:51 — SUPER SIZE</option>
+                </select>
+                <button onclick="setupCanvas()">Setup Test Canvas</button>
+            </div>
+            <div id="canvas-container">
+                <canvas id="test-canvas" width="770" height="290"></canvas>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Image Upload Test</h3>
+            <input type="file" id="image-input" accept="image/*" multiple>
+            <button onclick="uploadImages()">Upload Images</button>
+            <button onclick="addTestImage()">Add Test Image (Data URL)</button>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Layer Management</h3>
+            <div id="layer-list" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">
+                <div style="font-style: italic; color: #666;">No images uploaded yet</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <button onclick="bringSelectedToFront()" style="margin-right: 5px;">Bring to Front</button>
+                <button onclick="sendSelectedToBack()" style="margin-right: 5px;">Send to Back</button>
+                <button onclick="bringSelectedForward()" style="margin-right: 5px;">Bring Forward</button>
+                <button onclick="sendSelectedBackward()" style="margin-right: 5px;">Send Backward</button>
+                <button onclick="showLayerOrder()" style="margin-left: 10px; background: #ffc107; color: #000;">Show Layer Order</button>
+                <button onclick="refreshLayerOrder()" style="margin-left: 5px; background: #17a2b8; color: #fff;">Refresh Layers</button>
+                <button onclick="testLayerOrder()" style="margin-left: 5px; background: #28a745; color: #fff;">Test Layer Order</button>
+            </div>
+            <div style="font-size: 12px; color: #666;">
+                💡 Click on an image in the canvas to select it, then use the layer buttons above. Objects will flash green (forward) or red (backward) when moved.
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Export Test</h3>
+            <button onclick="testExport()">Test High-Res Export</button>
+            <button onclick="testNormalExport()">Test Normal Export</button>
+        </div>
+
+        <div class="test-section">
+            <h3>6. Memory Management</h3>
+            <button onclick="clearAllImages()">Clear All Images</button>
+            <button onclick="showStoredImages()">Show Stored Images</button>
+        </div>
+
+        <div class="test-section">
+            <h3>7. Console Log</h3>
+            <div id="console-log" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <!-- Load proxy system -->
+    <script src="proxy-system.js"></script>
+    <script src="proxy-integration.js"></script>
+
+    <script>
+        let testCanvas;
+        let originalConsoleLog = console.log;
+        let layers = []; // Track layer order for proxy system
+
+        // Override console.log to capture output
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const logDiv = document.getElementById('console-log');
+            const logEntry = document.createElement('div');
+            logEntry.textContent = new Date().toLocaleTimeString() + ': ' + args.join(' ');
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status-display');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function checkSystemStatus() {
+            console.log('Checking proxy system status...');
+            
+            if (window.checkProxySystemStatus) {
+                const status = window.checkProxySystemStatus();
+                showStatus(`Proxy System Status: ${JSON.stringify(status, null, 2)}`, 'success');
+            } else {
+                showStatus('Proxy system not loaded!', 'error');
+            }
+        }
+
+        function setupCanvas() {
+            // Get selected aspect ratio
+            const aspectRatioSelect = document.getElementById('aspect-ratio-select');
+            const selectedRatio = aspectRatioSelect.value;
+            
+            console.log(`Setting up test canvas with ${selectedRatio} aspect ratio...`);
+            
+            // Parse aspect ratio (e.g., "77:29" -> width: 77, height: 29)
+            const [widthRatio, heightRatio] = selectedRatio.split(':').map(Number);
+            
+            // Calculate dimensions for the selected aspect ratio
+            // Using a base width of 770px to make the ratio clear
+            const baseWidth = 770;
+            const baseHeight = Math.round((baseWidth * heightRatio) / widthRatio);
+            
+            console.log(`Canvas dimensions: ${baseWidth}x${baseHeight} (${selectedRatio} ratio)`);
+            
+            testCanvas = new fabric.Canvas('test-canvas', {
+                width: baseWidth,
+                height: baseHeight,
+                backgroundColor: '#f0f0f0'
+            });
+            
+            // Add some test objects
+            const rect = new fabric.Rect({
+                left: 100,
+                top: 100,
+                width: 100,
+                height: 100,
+                fill: 'red',
+                selectable: true
+            });
+            
+            const text = new fabric.Text('Test Text', {
+                left: 250,
+                top: 150,
+                fontSize: 20,
+                fill: 'blue',
+                selectable: true,
+                textBaseline: 'alphabetic'
+            });
+            
+            testCanvas.add(rect);
+            testCanvas.add(text);
+            testCanvas.renderAll();
+            
+            // Add event listener for object selection
+            testCanvas.on('selection:created', updateLayerList);
+            testCanvas.on('selection:cleared', updateLayerList);
+            testCanvas.on('object:modified', updateLayerList);
+            
+            // Disable auto-bring-to-front on selection
+            testCanvas.selection = false;
+            testCanvas.preserveObjectStacking = true;
+            
+            // Add event listener for object movement (throttled)
+            let moveTimeout;
+            testCanvas.on('object:moving', function(e) {
+                clearTimeout(moveTimeout);
+                moveTimeout = setTimeout(() => {
+                    console.log('Object moved:', e.target.type, e.target.imageId, 'to', e.target.left.toFixed(1), e.target.top.toFixed(1));
+                }, 100);
+            });
+            
+            let scaleTimeout;
+            testCanvas.on('object:scaling', function(e) {
+                clearTimeout(scaleTimeout);
+                scaleTimeout = setTimeout(() => {
+                    console.log('Object scaled:', e.target.type, e.target.imageId, 'to', e.target.scaleX.toFixed(3), e.target.scaleY.toFixed(3));
+                }, 100);
+            });
+            
+            // Initialize layers array
+            layers = [];
+            updateLayerList();
+            showStatus('Canvas setup complete!', 'success');
+        }
+
+        function updateCanvasAspectRatio() {
+            if (testCanvas) {
+                console.log('Updating canvas aspect ratio...');
+                setupCanvas();
+            } else {
+                console.log('Canvas not initialized yet. Please setup canvas first.');
+            }
+        }
+
+        function uploadImages() {
+            const input = document.getElementById('image-input');
+            const files = input.files;
+            
+            if (files.length === 0) {
+                showStatus('Please select images first!', 'error');
+                return;
+            }
+
+            if (!testCanvas) {
+                showStatus('Please setup canvas first!', 'error');
+                return;
+            }
+            
+            console.log(`Uploading ${files.length} images...`);
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith('image/')) {
+                    if (window.addImageToCanvasWithProxy) {
+                        window.addImageToCanvasWithProxy(file, testCanvas, i);
+                    } else {
+                        // Fallback to normal loading
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            fabric.Image.fromURL(e.target.result, function(img) {
+                                img.set({
+                                    left: 50 + (i * 150),
+                                    top: 50,
+                                    scaleX: 0.5,
+                                    scaleY: 0.5
+                                });
+                                testCanvas.add(img);
+                                testCanvas.renderAll();
+                            });
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                }
+            }
+            
+            showStatus(`Uploaded ${files.length} images!`, 'success');
+            
+            // Update layer list after a short delay to ensure all images are processed
+            setTimeout(() => {
+                updateLayerList();
+                console.log('Layer list updated after image upload');
+                console.log('Current layers:', layers);
+            }, 500);
+        }
+
+        function addTestImage() {
+            console.log('Adding test image...');
+            
+            // Create a test image data URL
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw a test pattern
+            ctx.fillStyle = 'linear-gradient(45deg, #ff0000, #00ff00, #0000ff)';
+            ctx.fillRect(0, 0, 200, 200);
+            ctx.fillStyle = 'white';
+            ctx.font = '20px Arial';
+            ctx.fillText('Test Image', 50, 100);
+            
+            const dataUrl = canvas.toDataURL();
+            
+            // Create a file from the data URL
+            fetch(dataUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    const file = new File([blob], 'test-image.png', { type: 'image/png' });
+                    if (window.addImageToCanvasWithProxy) {
+                        window.addImageToCanvasWithProxy(file, testCanvas, 0);
+                    } else {
+                        fabric.Image.fromURL(dataUrl, function(img) {
+                            img.set({
+                                left: 50,
+                                top: 50,
+                                scaleX: 0.5,
+                                scaleY: 0.5
+                            });
+                            testCanvas.add(img);
+                            testCanvas.renderAll();
+                        });
+                    }
+                });
+            
+            showStatus('Test image added!', 'success');
+            
+            // Update layer list after a short delay
+            setTimeout(() => {
+                updateLayerList();
+            }, 500);
+        }
+
+        function testExport() {
+            console.log('Testing high-res export...');
+            console.log('Current layers array for proxy system:', layers);
+            
+            // Show the expected layer order
+            console.log('Expected layer order for export (bottom to top):');
+            layers.forEach((layer, index) => {
+                console.log(`  ${index + 1}. ${layer.name} (${layer.type}) - Order: ${layer.order} ${layer.order === 0 ? '(TOP)' : ''}`);
+            });
+            
+            if (window.enhancedDownloadCanvas) {
+                window.enhancedDownloadCanvas(testCanvas);
+                showStatus('High-res export completed!', 'success');
+            } else {
+                showStatus('Enhanced download not available!', 'error');
+            }
+        }
+
+        function testNormalExport() {
+            console.log('Testing normal export...');
+            
+            const link = document.createElement('a');
+            link.download = `test-export-${Date.now()}.png`;
+            link.href = testCanvas.toDataURL({
+                format: 'png',
+                quality: 1.0
+            });
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showStatus('Normal export completed!', 'success');
+        }
+
+        function clearAllImages() {
+            console.log('Clearing all images...');
+            
+            if (window.proxyManager) {
+                window.proxyManager.clearAllImages();
+            }
+            
+            if (testCanvas) {
+                testCanvas.clear();
+                testCanvas.renderAll();
+                updateLayerList();
+            }
+            
+            showStatus('All images cleared from canvas and memory!', 'success');
+        }
+
+        function showStoredImages() {
+            console.log('Showing stored images...');
+            
+            if (window.proxyManager) {
+                const images = window.proxyManager.getAllOriginalImages();
+                showStatus(`Stored images: ${images.length}`, 'info');
+                console.log('Stored images:', images);
+            } else {
+                showStatus('Proxy manager not available!', 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('console-log').innerHTML = '';
+        }
+
+        // Layer management functions
+        function updateLayerList() {
+            const layerList = document.getElementById('layer-list');
+            if (!testCanvas) {
+                layerList.innerHTML = '<div style="font-style: italic; color: #666;">No canvas available</div>';
+                return;
+            }
+
+            const objects = testCanvas.getObjects();
+            if (objects.length === 0) {
+                layerList.innerHTML = '<div style="font-style: italic; color: #666;">No images uploaded yet</div>';
+                return;
+            }
+
+            // Update layers array for proxy system
+            // Use actual canvas stacking order (bottom to top)
+            // canvas.getObjects() returns objects in stacking order (bottom to top)
+            // So index 0 = bottom layer, last index = top layer
+            // But we want higher order numbers to represent higher layers (top)
+            layers = objects.map((obj, index) => ({
+                id: obj.imageId || `obj_${index}`,
+                name: obj.name || `${obj.type} ${index}`,
+                type: obj.type,
+                object: obj,
+                order: objects.length - 1 - index, // Reverse: last object = order 0 (top), first object = highest order (bottom)
+                visible: true
+            }));
+            
+            // Debug: Show layer order assignment
+            console.log('Layer order assignment:');
+            layers.forEach((layer, index) => {
+                const isTop = layer.order === 0;
+                console.log(`  ${index}: ${layer.name} (${layer.type}) - Order: ${layer.order} ${isTop ? '(TOP)' : ''}`);
+            });
+
+            let html = '<div style="font-weight: bold; margin-bottom: 8px;">Layer Stack (Top to Bottom):</div>';
+            
+            // Display objects in reverse order (top to bottom) for UI
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const obj = objects[i];
+                const isSelected = obj === testCanvas.getActiveObject();
+                const layerIndex = objects.length - 1 - i;
+                
+                html += `<div style="padding: 4px; margin: 2px 0; background: ${isSelected ? '#e3f2fd' : '#fff'}; border: 1px solid ${isSelected ? '#2196f3' : '#ddd'}; border-radius: 3px; cursor: pointer;" onclick="selectObject(${i})">`;
+                html += `<strong>Layer ${layerIndex}</strong> - ${obj.type || 'object'} ${obj.imageId ? `(${obj.imageId})` : ''}`;
+                
+                // Add transformation info for images
+                if (obj.type === 'image' && obj.imageId) {
+                    const initialPos = obj.initialPosition ? `(${obj.initialPosition.left.toFixed(0)},${obj.initialPosition.top.toFixed(0)})` : 'unknown';
+                    const currentPos = `(${obj.left.toFixed(0)},${obj.top.toFixed(0)})`;
+                    const initialScale = obj.initialScale ? `(${obj.initialScale.scaleX.toFixed(2)},${obj.initialScale.scaleY.toFixed(2)})` : 'unknown';
+                    const currentScale = `(${obj.scaleX.toFixed(2)},${obj.scaleY.toFixed(2)})`;
+                    
+                    html += `<br><small style="color: #666;">Pos: ${currentPos} (init: ${initialPos}) | Scale: ${currentScale} (init: ${initialScale})</small>`;
+                }
+                
+                if (isSelected) {
+                    html += ' <span style="color: #2196f3;">✓ Selected</span>';
+                }
+                html += '</div>';
+            }
+            
+            layerList.innerHTML = html;
+        }
+
+        function selectObject(index) {
+            if (!testCanvas) return;
+            
+            const objects = testCanvas.getObjects();
+            if (index >= 0 && index < objects.length) {
+                testCanvas.setActiveObject(objects[index]);
+                testCanvas.requestRenderAll();
+                updateLayerList();
+                console.log(`Selected object at index ${index}`);
+            }
+        }
+
+        function reorderLayersArray() {
+            if (!testCanvas) return;
+            
+            const canvasObjects = testCanvas.getObjects();
+            const newLayersOrder = [];
+            
+            // Create new order based on canvas object positions (bottom to top)
+            for (let i = 0; i < canvasObjects.length; i++) {
+                const object = canvasObjects[i];
+                const layer = layers.find(l => l.object === object);
+                if (layer) {
+                    layer.order = i;
+                    newLayersOrder.push(layer);
+                }
+            }
+            
+            // Replace layers array with new order
+            layers = newLayersOrder;
+        }
+
+        function bringSelectedToFront() {
+            if (!testCanvas) return;
+            
+            const activeObject = testCanvas.getActiveObject();
+            if (activeObject) {
+                testCanvas.bringToFront(activeObject);
+                testCanvas.requestRenderAll();
+                reorderLayersArray();
+                updateLayerList();
+                console.log('Brought selected object to front');
+                console.log('Updated layers array for proxy system:', layers);
+                
+                // Visual feedback - highlight the moved object briefly
+                activeObject.set('stroke', '#00ff00');
+                activeObject.set('strokeWidth', 3);
+                testCanvas.requestRenderAll();
+                setTimeout(() => {
+                    activeObject.set('stroke', 'transparent');
+                    activeObject.set('strokeWidth', 0);
+                    testCanvas.requestRenderAll();
+                }, 1000);
+            } else {
+                alert('Please select an object first');
+            }
+        }
+
+        function sendSelectedToBack() {
+            if (!testCanvas) return;
+            
+            const activeObject = testCanvas.getActiveObject();
+            if (activeObject) {
+                testCanvas.sendToBack(activeObject);
+                testCanvas.requestRenderAll();
+                reorderLayersArray();
+                updateLayerList();
+                console.log('Sent selected object to back');
+                console.log('Updated layers array for proxy system:', layers);
+                
+                // Visual feedback - highlight the moved object briefly
+                activeObject.set('stroke', '#ff0000');
+                activeObject.set('strokeWidth', 3);
+                testCanvas.requestRenderAll();
+                setTimeout(() => {
+                    activeObject.set('stroke', 'transparent');
+                    activeObject.set('strokeWidth', 0);
+                    testCanvas.requestRenderAll();
+                }, 1000);
+            } else {
+                alert('Please select an object first');
+            }
+        }
+
+        function bringSelectedForward() {
+            if (!testCanvas) return;
+            
+            const activeObject = testCanvas.getActiveObject();
+            if (activeObject) {
+                testCanvas.bringForward(activeObject);
+                testCanvas.requestRenderAll();
+                reorderLayersArray();
+                updateLayerList();
+                console.log('Brought selected object forward');
+                console.log('Updated layers array for proxy system:', layers);
+                
+                // Visual feedback - highlight the moved object briefly
+                activeObject.set('stroke', '#00ff00');
+                activeObject.set('strokeWidth', 3);
+                testCanvas.requestRenderAll();
+                setTimeout(() => {
+                    activeObject.set('stroke', 'transparent');
+                    activeObject.set('strokeWidth', 0);
+                    testCanvas.requestRenderAll();
+                }, 1000);
+            } else {
+                alert('Please select an object first');
+            }
+        }
+
+        function sendSelectedBackward() {
+            if (!testCanvas) return;
+            
+            const activeObject = testCanvas.getActiveObject();
+            if (activeObject) {
+                testCanvas.sendBackwards(activeObject);
+                testCanvas.requestRenderAll();
+                reorderLayersArray();
+                updateLayerList();
+                console.log('Sent selected object backward');
+                console.log('Updated layers array for proxy system:', layers);
+                
+                // Visual feedback - highlight the moved object briefly
+                activeObject.set('stroke', '#ff0000');
+                activeObject.set('strokeWidth', 3);
+                testCanvas.requestRenderAll();
+                setTimeout(() => {
+                    activeObject.set('stroke', 'transparent');
+                    activeObject.set('strokeWidth', 0);
+                    testCanvas.requestRenderAll();
+                }, 1000);
+            } else {
+                alert('Please select an object first');
+            }
+        }
+
+        function showLayerOrder() {
+            if (!testCanvas) return;
+            
+            const objects = testCanvas.getObjects();
+            console.log('Current canvas stacking order (bottom to top):');
+            
+            objects.forEach((obj, index) => {
+                const layerIndex = objects.length - 1 - index;
+                console.log(`  ${index + 1}. ${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''} - Layer ${layerIndex}`);
+                
+                // Temporarily show layer numbers on objects
+                if (obj.type === 'image') {
+                    obj.set('stroke', '#ffc107');
+                    obj.set('strokeWidth', 2);
+                }
+            });
+            
+            // Also show the layers array
+            console.log('Layers array:', layers);
+            console.log('Layer order mapping:');
+            layers.forEach((layer, index) => {
+                console.log(`  ${index}: ${layer.name} (${layer.type}) - Order: ${layer.order} ${layer.order === 0 ? '(TOP)' : ''}`);
+            });
+            
+            testCanvas.requestRenderAll();
+            
+            // Clear the highlighting after 3 seconds
+            setTimeout(() => {
+                objects.forEach(obj => {
+                    if (obj.type === 'image') {
+                        obj.set('stroke', 'transparent');
+                        obj.set('strokeWidth', 0);
+                    }
+                });
+                testCanvas.requestRenderAll();
+            }, 3000);
+        }
+
+        function refreshLayerOrder() {
+            if (!testCanvas) return;
+            
+            console.log('Manually refreshing layer order...');
+            updateLayerList();
+            console.log('Layer order refreshed. Current layers:', layers);
+            
+            // Show the current layer order
+            const objects = testCanvas.getObjects();
+            console.log('Canvas objects (bottom to top):');
+            objects.forEach((obj, index) => {
+                const layerIndex = objects.length - 1 - index;
+                console.log(`  ${index + 1}. ${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''} - Layer ${layerIndex}`);
+            });
+            
+            // Show the expected export order
+            console.log('Expected export order (bottom to top):');
+            const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
+            sortedLayers.forEach((layer, index) => {
+                console.log(`  ${index + 1}. ${layer.name} (${layer.type}) - Order: ${layer.order} ${layer.order === 0 ? '(TOP)' : ''}`);
+            });
+        }
+
+        function testLayerOrder() {
+            if (!testCanvas) return;
+            
+            console.log('=== LAYER ORDER TEST ===');
+            
+            // Get current objects
+            const objects = testCanvas.getObjects();
+            console.log('Canvas objects:', objects.map(obj => `${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''}`));
+            
+            // Get current layers
+            console.log('Current layers:', layers);
+            
+            // Show layer mapping
+            console.log('Layer mapping:');
+            objects.forEach((obj, index) => {
+                const layer = layers.find(l => l.object === obj);
+                if (layer) {
+                    console.log(`  ${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''} -> Layer ${layer.name} (Order: ${layer.order})`);
+                } else {
+                    console.log(`  ${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''} -> No layer found`);
+                }
+            });
+            
+            // Show expected export order
+            console.log('Expected export order (bottom to top):');
+            const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
+            sortedLayers.forEach((layer, index) => {
+                console.log(`  ${index + 1}. ${layer.name} (${layer.type}) - Order: ${layer.order} ${layer.order === 0 ? '(TOP)' : ''}`);
+            });
+            
+            // Test the sorting logic
+            console.log('Testing sorting logic...');
+            const testObjects = [...objects];
+            const sortedObjects = testObjects.sort((a, b) => {
+                const layerA = layers.find(l => l.object === a);
+                const layerB = layers.find(l => l.object === b);
+                if (layerA && layerB) {
+                    const result = layerB.order - layerA.order;
+                    console.log(`  Sorting: ${layerA.name} (${layerA.order}) vs ${layerB.name} (${layerB.order}) = ${result}`);
+                    return result;
+                }
+                return 0;
+            });
+            
+            console.log('Sorted objects:', sortedObjects.map(obj => `${obj.type} ${obj.imageId ? `(${obj.imageId})` : ''}`));
+            console.log('=== END LAYER ORDER TEST ===');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Proxy system test page loaded');
+            checkSystemStatus();
+        });
+    </script>
+</body>
+</html> 

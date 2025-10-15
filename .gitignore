@@ -1,0 +1,9 @@
+﻿.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+dist/
+build/
+*.log
+.cursor/
+.agent-tools/

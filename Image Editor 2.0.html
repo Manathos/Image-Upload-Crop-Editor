@@ -1,0 +1,861 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Fabric.js Simple Image Upload Test</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+</head>
+<body>
+    <!-- How To Modal -->
+    <div id="how-to-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 20000; overflow-y: auto;">
+      <div style="background: #1a1919; color: #fff; max-width: 800px; margin: 20px auto; border-radius: 12px; border: 2px solid #f4a012; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #444;">
+          <h2 style="color: #f4a012; margin: 0; font-size: 24px;">📚 Desk Pad Editor - How To Guide</h2>
+          <button id="how-to-close" style="background: none; border: none; color: #f4a012; font-size: 24px; cursor: pointer; padding: 8px;">×</button>
+        </div>
+        
+        <div style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🚀 Getting Started</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Upload Images:</strong> Click "Upload" in the left sidebar or drag & drop images directly onto the canvas</li>
+              <li><strong>Add Text:</strong> Click "Add Text" to insert editable text elements</li>
+              <li><strong>Recent Images:</strong> Access previously uploaded images via the "Recent" button</li>
+              <li><strong>Pad Size:</strong> Choose from preset desk pad sizes or create custom dimensions</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🎯 Core Features</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Layers Panel:</strong> Click "Layers" to manage image and text layers - reorder, hide, lock, or delete</li>
+              <li><strong>Transform Tools:</strong> Use "Transform" for alignment, duplication, and positioning</li>
+              <li><strong>Canvas Tools:</strong> Access "Canvas" for zoom controls and viewport management</li>
+              <li><strong>DPI Settings:</strong> Set print resolution (150-600 DPI) for professional output</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">⚡ Transform Tools (Alignment & Positioning)</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Align:</strong> Top, Center, Bottom, Left, Right - snap elements to canvas edges</li>
+              <li><strong>Fill Canvas:</strong> Scale image to fill entire canvas area</li>
+              <li><strong>Fit Canvas:</strong> Scale image to fit within canvas while maintaining aspect ratio</li>
+              <li><strong>Center:</strong> Center selected element on canvas</li>
+              <li><strong>Duplicate:</strong> Create copies of selected images or text</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🔧 Canvas Controls</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Zoom:</strong> Use +/- buttons or mouse wheel to zoom in/out</li>
+              <li><strong>Pan:</strong> Click and drag on empty canvas areas to move viewport</li>
+              <li><strong>Fit to View:</strong> Automatically adjust zoom to show entire canvas</li>
+              <li><strong>Reset View:</strong> Return to 100% zoom and center view</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">📝 Text Editing</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Double-click text</strong> to open the text editor modal</li>
+              <li><strong>Font Selection:</strong> Choose from various font categories and styles</li>
+              <li><strong>Text Properties:</strong> Adjust size, color, and formatting</li>
+              <li><strong>Auto-naming:</strong> Layer names update automatically based on text content</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🎨 Layer Management</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Drag & Drop:</strong> Reorder layers by dragging them up/down in the layers panel</li>
+              <li><strong>Rename Layers:</strong> Double-click on layer names to edit them inline</li>
+              <li><strong>Visibility:</strong> Click the eye icon to show/hide layers</li>
+              <li><strong>Locking:</strong> Click the lock icon to prevent accidental editing</li>
+              <li><strong>Selection:</strong> Click layer names to select and edit specific elements</li>
+              <li><strong>Properties:</strong> View and edit layer properties in the right panel</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🖱️ Mouse & Keyboard Shortcuts</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Select:</strong> Click on any element to select it</li>
+              <li><strong>Move:</strong> Click and drag selected elements</li>
+              <li><strong>Resize:</strong> Drag corner handles to resize elements</li>
+              <li><strong>Resize from Center:</strong> Hold Alt while dragging handles to resize from center</li>
+              <li><strong>Distort Text:</strong> Hold Shift while resizing text to distort it (preserved when editing)</li>
+              <li><strong>Rotate:</strong> Drag rotation handle to rotate elements</li>
+              <li><strong>Delete:</strong> Press Delete key or use layer panel delete button</li>
+              <li><strong>Duplicate:</strong> Use Transform toolbar duplicate button</li>
+              <li><strong>Zoom:</strong> Mouse wheel or Ctrl/Cmd + scroll</li>
+              <li><strong>Pan:</strong> Middle mouse button drag or spacebar + drag</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">🖨️ Export & Print</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Preview:</strong> Click "Preview" to see how your design will look on the desk pad</li>
+              <li><strong>Finished:</strong> Click "Finished" to export your design</li>
+              <li><strong>DPI Settings:</strong> Higher DPI = better print quality (300+ recommended for professional printing)</li>
+              <li><strong>Canvas Size:</strong> Choose appropriate desk pad dimensions for your needs</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #f4a012; border-bottom: 1px solid #444; padding-bottom: 8px;">💡 Pro Tips</h3>
+            <ul style="line-height: 1.6;">
+              <li><strong>Use Layers:</strong> Keep images and text on separate layers for easier editing</li>
+              <li><strong>Snap to Edges:</strong> Use alignment tools to create professional layouts</li>
+              <li><strong>High Resolution:</strong> Use high-DPI images for best print quality</li>
+              <li><strong>Preview Often:</strong> Use the preview function to check your design before finalizing</li>
+              <li><strong>Save Work:</strong> Your recent images are automatically saved for quick access</li>
+            </ul>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px; padding: 20px; background: #2a2a2a; border-radius: 8px;">
+            <p style="margin: 0; color: #f4a012; font-weight: bold;">🎉 You're ready to create amazing desk pad designs!</p>
+            <p style="margin: 10px 0 0 0; color: #ccc; font-size: 14px;">Start by uploading an image and exploring the tools above.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Interface - Centered Desk Pad Editor Button -->
+  <div id="main-interface">
+    <div id="desk-pad-button" class="desk-pad-button">
+      <div class="button-content">
+        <div class="button-text">Desk Pad Editor</div>
+        <div class="button-subtitle">Click to open full-screen editor</div>
+        <div class="button-preview" id="button-preview"></div>
+      </div>
+      <div class="button-hover-effect"></div>
+    </div>
+  </div>
+  
+  <!-- Desk Pad Modal -->
+  <div id="desk-pad-modal-overlay">
+    <!-- Shortcut Menu -->
+    <div id="shortcut-menu">
+      <button class="shortcut-btn" id="shortcut-upload" title="Upload Image" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+        ⬆
+        <div class="shortcut-btn-text">Upload</div>
+      </button>
+      <button class="shortcut-btn" id="shortcut-recent" title="Recent Images" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+        ⛶
+        <div class="shortcut-btn-text">Recent</div>
+      </button>
+      <button class="shortcut-btn" id="shortcut-pad-size" title="Pad Size" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+        ⤡
+        <div class="shortcut-btn-text">Pad Size</div>
+      </button>
+      <button class="shortcut-btn" id="shortcut-add-text" title="Add Text" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+        T
+        <div class="shortcut-btn-text">Add Text</div>
+      </button>
+      <button class="shortcut-btn" id="shortcut-how-to" title="How To Guide" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">
+        ?
+        <div class="shortcut-btn-text">How To</div>
+      </button>
+      <button class="shortcut-btn" id="shortcut-clear-canvas" title="Clear Canvas" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-top: auto; color: #ff4444;">
+        ✕
+        <div class="shortcut-btn-text">Clear</div>
+      </button>
+      <!-- More shortcut buttons can be added here later -->
+    </div>
+    
+    <!-- Recent Images Popup -->
+    <div id="recent-images-popup" class="recent-images-popup">
+      <div class="recent-images-header">
+        <span>Recent Images</span>
+        <button id="recent-popup-close" class="recent-popup-close">&times;</button>
+      </div>
+      <div id="recent-images-popup-grid" class="recent-images-popup-grid">
+        <!-- Recent images will be populated here -->
+      </div>
+    </div>
+    
+    <!-- Pad Size Popup -->
+    <div id="pad-size-popup" class="pad-size-popup">
+      <div class="pad-size-header">
+        <span>Pad Size</span>
+        <button id="pad-size-popup-close" class="pad-size-popup-close">&times;</button>
+      </div>
+      <div class="pad-size-content">
+        <div class="pad-size-option" data-preset="extended">
+          <div class="pad-size-name">EXTENDED</div>
+          <div class="pad-size-details">33" × 11"</div>
+          <div class="pad-size-desc">Standard extended desk pad</div>
+        </div>
+        <div class="pad-size-option" data-preset="immersive">
+          <div class="pad-size-name">IMMERSIVE</div>
+          <div class="pad-size-details">33.5" × 13.8"</div>
+          <div class="pad-size-desc">Wide immersive experience</div>
+        </div>
+        <div class="pad-size-option" data-preset="laptop">
+          <div class="pad-size-name">LAPTOP</div>
+          <div class="pad-size-details">23.6" × 13.8"</div>
+          <div class="pad-size-desc">Perfect for laptop desks (4mm thickness)</div>
+        </div>
+        <div class="pad-size-option" data-preset="playmat">
+          <div class="pad-size-name">PLAY MAT</div>
+          <div class="pad-size-details">23.6" × 13.8"</div>
+          <div class="pad-size-desc">Gaming play mat (2mm thickness)</div>
+        </div>
+        <div class="pad-size-option" data-preset="fullsize">
+          <div class="pad-size-name">FULLSIZE</div>
+          <div class="pad-size-details">37.4" × 15.7"</div>
+          <div class="pad-size-desc">Large format desk pad</div>
+        </div>
+        <div class="pad-size-option" data-preset="supersize">
+          <div class="pad-size-name">SUPERSIZE</div>
+          <div class="pad-size-details">39.1" × 19.6"</div>
+          <div class="pad-size-desc">Extra large workspace</div>
+        </div>
+        
+
+      </div>
+    </div>
+    
+    <!-- DPI Selection Modal -->
+    <div id="dpi-selection-modal" class="dpi-selection-modal">
+      <div class="dpi-modal-content">
+        <div class="dpi-modal-header">
+          <h3>⚠️ Performance Warning</h3>
+          <button id="dpi-modal-close" class="dpi-modal-close">&times;</button>
+        </div>
+        <div class="dpi-modal-body">
+          <div class="dpi-warning-message">
+            <p><strong>Changing canvas DPI may cause:</strong></p>
+            <ul>
+              <li>• Slower editor performance</li>
+              <li>• Increased memory usage</li>
+              <li>• Potential browser instability</li>
+              <li>• Longer save/export times</li>
+            </ul>
+            <p>Are you sure you want to continue?</p>
+          </div>
+          <div class="dpi-options">
+            <div class="dpi-option" data-dpi="100">
+              <div class="dpi-option-name">100 DPI</div>
+              <div class="dpi-option-desc">Standard quality, fast performance</div>
+            </div>
+            <div class="dpi-option" data-dpi="150">
+              <div class="dpi-option-name">150 DPI</div>
+              <div class="dpi-option-desc">High quality, moderate performance</div>
+            </div>
+            <div class="dpi-option" data-dpi="300">
+              <div class="dpi-option-name">300 DPI</div>
+              <div class="dpi-option-desc">Print quality, slow performance</div>
+            </div>
+          </div>
+        </div>
+        <div class="dpi-modal-footer">
+          <button id="dpi-modal-cancel" class="dpi-modal-btn dpi-modal-cancel">Cancel</button>
+          <button id="dpi-modal-continue" class="dpi-modal-btn dpi-modal-continue">Continue</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Add Text Popup -->
+    <div id="add-text-popup" class="add-text-popup">
+      <div class="add-text-header">
+        <span>Add Text</span>
+        <button id="add-text-popup-close" class="add-text-popup-close">&times;</button>
+      </div>
+      <div class="add-text-content">
+        <div class="font-category">
+          <div class="font-category-title">Popular Fonts</div>
+          <div class="font-list">
+            <div class="font-option" data-font="Arial">
+              <div class="font-preview" style="font-family: Arial;">A</div>
+              <div class="font-name">Arial</div>
+              <div class="font-sample" style="font-family: Arial;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Helvetica">
+              <div class="font-preview" style="font-family: Helvetica;">A</div>
+              <div class="font-name">Helvetica</div>
+              <div class="font-sample" style="font-family: Helvetica;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Times New Roman">
+              <div class="font-preview" style="font-family: 'Times New Roman';">A</div>
+              <div class="font-name">Times New Roman</div>
+              <div class="font-sample" style="font-family: 'Times New Roman';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Georgia">
+              <div class="font-preview" style="font-family: Georgia;">A</div>
+              <div class="font-name">Georgia</div>
+              <div class="font-sample" style="font-family: Georgia;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Verdana">
+              <div class="font-preview" style="font-family: Verdana;">A</div>
+              <div class="font-name">Verdana</div>
+              <div class="font-sample" style="font-family: Verdana;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Tahoma">
+              <div class="font-preview" style="font-family: Tahoma;">A</div>
+              <div class="font-name">Tahoma</div>
+              <div class="font-sample" style="font-family: Tahoma;">Quick Brown Fox</div>
+            </div>
+          </div>
+        </div>
+        <div class="font-category">
+          <div class="font-category-title">Decorative Fonts</div>
+          <div class="font-list">
+            <div class="font-option" data-font="Impact">
+              <div class="font-preview" style="font-family: Impact;">A</div>
+              <div class="font-name">Impact</div>
+              <div class="font-sample" style="font-family: Impact;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Comic Sans MS">
+              <div class="font-preview" style="font-family: 'Comic Sans MS';">A</div>
+              <div class="font-name">Comic Sans MS</div>
+              <div class="font-sample" style="font-family: 'Comic Sans MS';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Courier New">
+              <div class="font-preview" style="font-family: 'Courier New';">A</div>
+              <div class="font-name">Courier New</div>
+              <div class="font-sample" style="font-family: 'Courier New';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Lucida Console">
+              <div class="font-preview" style="font-family: 'Lucida Console';">A</div>
+              <div class="font-name">Lucida Console</div>
+              <div class="font-sample" style="font-family: 'Lucida Console';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Trebuchet MS">
+              <div class="font-preview" style="font-family: 'Trebuchet MS';">A</div>
+              <div class="font-name">Trebuchet MS</div>
+              <div class="font-sample" style="font-family: 'Trebuchet MS';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Arial Black">
+              <div class="font-preview" style="font-family: 'Arial Black';">A</div>
+              <div class="font-name">Arial Black</div>
+              <div class="font-sample" style="font-family: 'Arial Black';">Quick Brown Fox</div>
+            </div>
+          </div>
+        </div>
+        <div class="font-category">
+          <div class="font-category-title">Modern Fonts</div>
+          <div class="font-list">
+            <div class="font-option" data-font="Segoe UI">
+              <div class="font-preview" style="font-family: 'Segoe UI';">A</div>
+              <div class="font-name">Segoe UI</div>
+              <div class="font-sample" style="font-family: 'Segoe UI';">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Calibri">
+              <div class="font-preview" style="font-family: Calibri;">A</div>
+              <div class="font-name">Calibri</div>
+              <div class="font-sample" style="font-family: Calibri;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Candara">
+              <div class="font-preview" style="font-family: Candara;">A</div>
+              <div class="font-name">Candara</div>
+              <div class="font-sample" style="font-family: Candara;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Corbel">
+              <div class="font-preview" style="font-family: Corbel;">A</div>
+              <div class="font-name">Corbel</div>
+              <div class="font-sample" style="font-family: Corbel;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Consolas">
+              <div class="font-preview" style="font-family: Consolas;">A</div>
+              <div class="font-name">Consolas</div>
+              <div class="font-sample" style="font-family: Consolas;">Quick Brown Fox</div>
+            </div>
+            <div class="font-option" data-font="Cambria">
+              <div class="font-preview" style="font-family: Cambria;">A</div>
+              <div class="font-name">Cambria</div>
+              <div class="font-sample" style="font-family: Cambria;">Quick Brown Fox</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Shapes Popup -->
+    <div id="add-shapes-popup" class="add-shapes-popup">
+      <div class="add-shapes-header">
+        <span>Add Shapes</span>
+        <button id="add-shapes-popup-close" class="add-shapes-popup-close">&times;</button>
+      </div>
+      <div class="add-shapes-content">
+        <div class="shape-category">
+          <div class="shape-category-title">Basic Shapes</div>
+          <div class="shape-list">
+            <div class="shape-option" data-shape="rect">
+              <div class="shape-preview">▭</div>
+              <div class="shape-name">Rectangle</div>
+            </div>
+            <div class="shape-option" data-shape="square">
+              <div class="shape-preview">■</div>
+              <div class="shape-name">Square</div>
+            </div>
+            <div class="shape-option" data-shape="circle">
+              <div class="shape-preview">●</div>
+              <div class="shape-name">Circle</div>
+            </div>
+            <div class="shape-option" data-shape="triangle">
+              <div class="shape-preview">▲</div>
+              <div class="shape-name">Triangle</div>
+            </div>
+            <div class="shape-option" data-shape="ellipse">
+              <div class="shape-preview">⬭</div>
+              <div class="shape-name">Ellipse</div>
+            </div>
+          </div>
+        </div>
+        <div class="shape-category">
+          <div class="shape-category-title">Polygons</div>
+          <div class="shape-list">
+            <div class="shape-option" data-shape="polygon-5">
+              <div class="shape-preview">⬟</div>
+              <div class="shape-name">Pentagon</div>
+            </div>
+            <div class="shape-option" data-shape="polygon-6">
+              <div class="shape-preview">⬡</div>
+              <div class="shape-name">Hexagon</div>
+            </div>
+            <div class="shape-option" data-shape="polygon-8">
+              <div class="shape-preview">⬢</div>
+              <div class="shape-name">Octagon</div>
+            </div>
+            <div class="shape-option" data-shape="star">
+              <div class="shape-preview">★</div>
+              <div class="shape-name">Star</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Shape Editor Modal -->
+    <div id="shape-editor-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 20000; overflow-y: auto;">
+      <div style="background: #1a1919; color: #fff; max-width: 400px; margin: 20px auto; border-radius: 12px; border: 2px solid #f4a012; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #444;">
+          <h2 style="color: #f4a012; margin: 0; font-size: 20px;">Edit Shape</h2>
+          <button id="shape-editor-close" style="background: none; border: none; color: #f4a012; font-size: 24px; cursor: pointer; padding: 8px;">×</button>
+        </div>
+        
+        <div style="padding: 20px;">
+          <!-- Shape Preview -->
+          <div style="margin-bottom: 20px; text-align: center;">
+            <div style="margin-bottom: 8px;">
+              <span style="color: #f4a012; font-weight: bold; font-size: 14px;">Shape Preview</span>
+            </div>
+            <div id="shape-preview" style="display: flex; justify-content: center; align-items: center; height: 200px; background: #1a1a1a; border-radius: 8px; border: 2px solid #444; margin: 0 auto; width: 300px;">
+              <!-- Preview content will be populated here -->
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; color: #f4a012; font-weight: bold;">Fill Color:</label>
+            <input type="color" id="shape-fill-color" style="width: 100%; height: 40px; border: 2px solid #444; border-radius: 6px; background: #2a2a2a; cursor: pointer;">
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; color: #f4a012; font-weight: bold; cursor: pointer;">
+              <input type="checkbox" id="shape-transparent-center" style="width: 16px; height: 16px; accent-color: #f4a012;">
+              <span>Transparent Center</span>
+            </label>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; color: #f4a012; font-weight: bold; cursor: pointer;">
+              <input type="checkbox" id="shape-stroke-toggle" style="width: 16px; height: 16px; accent-color: #f4a012;">
+              <span>Enable Stroke</span>
+            </label>
+          </div>
+          
+          <div id="stroke-controls" style="margin-bottom: 20px; display: none;">
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; color: #f4a012; font-weight: bold;">Stroke Color:</label>
+              <input type="color" id="shape-stroke-color" style="width: 100%; height: 40px; border: 2px solid #444; border-radius: 6px; background: #2a2a2a; cursor: pointer;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; color: #f4a012; font-weight: bold;">Stroke Width:</label>
+              <input type="range" id="shape-stroke-width" min="0" max="50" step="1" style="width: 100%; height: 6px; border-radius: 3px; background: #444; outline: none; cursor: pointer;">
+              <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                <span style="font-size: 12px; color: #ccc;">0px</span>
+                <span id="stroke-width-value" style="font-size: 12px; color: #f4a012; font-weight: bold;">25px</span>
+                <span style="font-size: 12px; color: #ccc;">50px</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; margin-top: 30px;">
+            <button id="shape-editor-apply" style="flex: 1; background: #f4a012; color: #000; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s ease;">Apply</button>
+            <button id="shape-editor-cancel" style="flex: 1; background: #444; color: #fff; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s ease;">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Layers/Properties Menu -->
+    <div id="layers-menu">
+      <div class="layers-header">
+        <span>Layers & Properties</span>
+        <button id="layers-close" class="layers-close">&times;</button>
+      </div>
+      <div class="layers-content">
+        <div class="layers-section">
+          <div class="layers-section-title">
+            <span>Layers</span>
+            <div class="layer-arrow-controls">
+              <button id="layer-move-up" class="layer-arrow-btn" title="Move selected layer up">
+                <i class="bi bi-arrow-up"></i>
+              </button>
+              <button id="layer-move-down" class="layer-arrow-btn" title="Move selected layer down">
+                <i class="bi bi-arrow-down"></i>
+              </button>
+            </div>
+          </div>
+          <div id="layers-list">
+            <!-- Layers will be populated here dynamically -->
+          </div>
+        </div>
+        
+        <div class="layers-section">
+          <div class="layers-section-title">Properties</div>
+          <div id="properties-panel">
+            <!-- Object Preview -->
+            <div id="object-preview-container" style="display: none; margin-bottom: 12px; padding: 8px; background: #2a2a2a; border-radius: 6px; border: 1px solid #444;">
+              <div style="text-align: center; margin-bottom: 6px;">
+                <span style="color: #f4a012; font-weight: bold; font-size: 11px;">Object Preview</span>
+              </div>
+              <div id="object-preview" style="display: flex; justify-content: center; align-items: center; min-height: 60px; background: #1a1a1a; border-radius: 4px; border: 1px solid #555;">
+                <!-- Preview content will be populated here -->
+              </div>
+            </div>
+            
+            <!-- Image Properties (Collapsible) -->
+            <div id="image-properties-container" style="margin-bottom: 12px; background: #2a2a2a; border-radius: 6px; border: 1px solid #444; overflow: hidden;">
+              <div id="image-properties-header" style="padding: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #333; border-bottom: 1px solid #444;">
+                <span style="color: #f4a012; font-weight: bold; font-size: 11px;">Image Properties</span>
+                <span id="image-properties-toggle" style="color: #f4a012; font-size: 12px; transition: transform 0.2s ease;">▼</span>
+              </div>
+              <div id="image-properties-content" style="display: none; padding: 8px;">
+                <div style="margin-bottom: 6px; font-size: 11px;">
+                  <span style="color: #f4a012;">Display Size:</span>
+                  <span id="image-display-size" style="color: #ccc; margin-left: 4px;">-</span>
+                </div>
+                <div style="margin-bottom: 6px; font-size: 11px;">
+                  <span style="color: #f4a012;">Original Size:</span>
+                  <span id="image-original-size" style="color: #ccc; margin-left: 4px;">-</span>
+                </div>
+                <div style="margin-bottom: 6px; font-size: 11px;">
+                  <span style="color: #f4a012;">Scale:</span>
+                  <span id="image-scale" style="color: #ccc; margin-left: 4px;">-</span>
+                </div>
+                <div style="margin-bottom: 6px; font-size: 11px;">
+                  <span style="color: #f4a012;">Rotation:</span>
+                  <span id="image-rotation" style="color: #ccc; margin-left: 4px;">-</span>
+                </div>
+                <div style="margin-bottom: 0px; font-size: 11px;">
+                  <span style="color: #f4a012;">Position:</span>
+                  <span id="image-position" style="color: #ccc; margin-left: 4px;">-</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Properties will be populated here -->
+            <div id="properties-content" style="color: #ccc; font-size: 12px; font-style: italic;">
+              Select an object to view its properties
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="desk-pad-modal-toolbar" style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <button id="desk-pad-menu-btn" style="background: none; border: none; color: #f4a012; cursor: pointer; padding: 8px; display: flex; flex-direction: column; gap: 3px;">
+          <div style="width: 24px; height: 3px; background: #f4a012; border-radius: 2px;"></div>
+          <div style="width: 24px; height: 3px; background: #f4a012; border-radius: 2px;"></div>
+          <div style="width: 24px; height: 3px; background: #f4a012; border-radius: 2px;"></div>
+        </button>
+        <img src="Paddash Logo.png" alt="Paddash Logo" style="height: 32px; width: auto; margin: 0 8px;">
+        <div style="font-size: 20px; font-weight: bold; color: #f4a012;">
+          Desk Pad Editor
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; position: absolute; left: 50%; transform: translateX(-50%);">
+        <button id="alignment-toggle-btn" title="Toggle Alignment Tools">
+          <span>Transform</span>
+          <span id="alignment-toggle-icon">▼</span>
+        </button>
+
+        <button id="layers-toggle-btn" title="Toggle Layers & Properties">
+          <span>Layers</span>
+          <span id="layers-toggle-icon">▼</span>
+          <div class="quality-notification-badge hide">!</div>
+        </button>
+        <button id="background-toggle-btn" title="Toggle Background Settings">
+          <span>Background</span>
+          <span id="background-toggle-icon">▼</span>
+        </button>
+        <button id="theme-toggle-btn" title="Toggle Light/Dark Theme">
+          <span id="theme-toggle-icon">🌙</span>
+          <span id="theme-toggle-text">Dark</span>
+        </button>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button id="desk-pad-preview-btn" class="toggle-btn" title="Preview on Pad">Preview</button>
+        <button id="desk-pad-download-btn" class="toggle-btn" title="Download Image">Download</button>
+        <button id="desk-pad-finished-btn">Finished</button>
+      </div>
+    </div>
+    
+    <!-- Alignment Toolbar -->
+    <div id="alignment-toolbar">
+      <div class="alignment-controls">
+        <div class="align-btn-container">
+          <button id="align-top" class="align-btn" title="Align to Top" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">↑</button>
+          <div class="align-btn-text">Top</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="align-bottom" class="align-btn" title="Align to Bottom" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">↓</button>
+          <div class="align-btn-text">Bottom</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="align-center" class="align-btn" title="Align to Center" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⊙</button>
+          <div class="align-btn-text">Center</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="align-left" class="align-btn" title="Align to Left" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">←</button>
+          <div class="align-btn-text">Left</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="align-right" class="align-btn" title="Align to Right" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">→</button>
+          <div class="align-btn-text">Right</div>
+        </div>
+        
+        <div class="alignment-divider"></div>
+        
+        <div class="align-btn-container">
+          <button id="fill-canvas" class="align-btn" title="Fill Canvas" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⛶</button>
+          <div class="align-btn-text">Fill</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="fit-canvas" class="align-btn" title="Fit to Canvas" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⤡</button>
+          <div class="align-btn-text">Fit</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="center-canvas" class="align-btn" title="Center on Canvas" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⊕</button>
+          <div class="align-btn-text">Center</div>
+        </div>
+        
+        <div class="alignment-divider"></div>
+        
+                  <div class="align-btn-container" style="grid-column: span 2; justify-self: center;">
+            <button id="edit-image" class="align-btn" title="Edit Image (Crop, Rotate, Flip)" style="font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; background: #f4a012; color: white; border: 2px solid #f4a012; border-radius: 6px; padding: 4px 12px; min-width: 100px; display: none;">Edit Image</button>
+            <button id="edit-text" class="align-btn" title="Edit Text" style="font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; background: #f4a012; color: white; border: 2px solid #f4a012; border-radius: 6px; padding: 4px 12px; min-width: 100px; display: none;">Edit Text</button>
+            <button id="crop-in-canvas" class="align-btn" title="Crop In Canvas" style="font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; background: #333; color: #f4a012; border: 1px solid #f4a012; border-radius: 6px; padding: 4px 12px; min-width: 100px; display: none;">Crop</button>
+            <div class="align-btn-text">Edit Object</div>
+          </div>
+        
+        <div class="alignment-divider"></div>
+        
+        <div class="align-btn-container">
+          <button id="duplicate-object" class="align-btn" title="Duplicate Object" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⧉</button>
+          <div class="align-btn-text">Duplicate</div>
+        </div>
+        
+        <div class="alignment-divider"></div>
+        
+        <div class="align-btn-container">
+          <button id="bring-forward" class="align-btn" title="Bring Forward" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⬆</button>
+          <div class="align-btn-text">Forward</div>
+        </div>
+        <div class="align-btn-container">
+          <button id="send-backward" class="align-btn" title="Send Backward" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">⬇</button>
+          <div class="align-btn-text">Backward</div>
+        </div>
+        
+        <div class="alignment-divider"></div>
+        
+        <!-- Opacity Control -->
+        <div class="opacity-control-container">
+          <div class="opacity-label">Opacity</div>
+          <div class="opacity-slider-container">
+            <input type="range" id="opacity-slider" min="0" max="100" value="100" class="opacity-slider" title="Adjust object opacity">
+            <span id="opacity-value" class="opacity-value">100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Canvas Toolbar -->
+    <div id="canvas-toolbar">
+      <div class="canvas-alignment-controls">
+        <div class="canvas-btn-container">
+          <button id="zoom-out-btn" class="canvas-btn" title="Zoom Out (-)" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">−</button>
+          <div class="canvas-btn-text">Zoom Out</div>
+        </div>
+        <span id="zoom-level" style="color: #f4a012; font-size: 16px; min-width: 60px; text-align: center; font-weight: bold;">100%</span>
+        <div class="canvas-btn-container">
+          <button id="zoom-in-btn" class="canvas-btn" title="Zoom In (+)" style="font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center;">+</button>
+          <div class="canvas-btn-text">Zoom In</div>
+        </div>
+        <div class="canvas-btn-container">
+          <button id="zoom-fit-btn" class="canvas-btn" title="Fit to View (0)" style="font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center;">Fit</button>
+          <div class="canvas-btn-text">Fit View</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Background Toolbar -->
+    <div id="background-toolbar">
+      <div style="display: flex; align-items: center; gap: 10px; justify-content: center;">
+        <input type="color" id="background-color-picker" value="#ffffff" style="width: 35px; height: 30px; border: 2px solid #444; border-radius: 4px; background: #2a2a2a; cursor: pointer;">
+        <input type="text" id="background-color-input" value="#ffffff" placeholder="#ffffff" style="width: 90px; background: #2a2a2a; color: #fff; border: 2px solid #444; border-radius: 4px; padding: 6px 8px; font-size: 12px;">
+        <div style="display: flex; gap: 4px;">
+          <div class="preset-color" data-color="#ffffff" style="width: 22px; height: 22px; background: #ffffff; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+          <div class="preset-color" data-color="#000000" style="width: 22px; height: 22px; background: #000000; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+          <div class="preset-color" data-color="#f4a012" style="width: 22px; height: 22px; background: #f4a012; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+          <div class="preset-color" data-color="#3498db" style="width: 22px; height: 22px; background: #3498db; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+          <div class="preset-color" data-color="#e74c3c" style="width: 22px; height: 22px; background: #e74c3c; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+          <div class="preset-color" data-color="#2ecc71" style="width: 22px; height: 22px; background: #2ecc71; border: 2px solid #444; border-radius: 3px; cursor: pointer;"></div>
+        </div>
+        <button id="reset-background" class="align-btn" style="min-width: auto; padding: 8px 12px; font-size: 12px;">Reset to Transparent</button>
+      </div>
+    </div>
+    
+    <div id="modal-dpi-display">No image selected</div>
+    <div id="canvas-size-info" style="background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; font-size: 12px; color: #ccc;">
+      <strong>Canvas Size:</strong> 2900 × 1093px<br>
+      <strong>Format:</strong> Extended<br>
+      <strong>Print Quality:</strong> 100 DPI<br>
+      <strong>Print Size:</strong> 11" × 29" equivalent<br>
+      <small>Images will scale to fit but won't upscale if too small</small>
+    </div>
+    <div id="desk-pad-modal-canvas-container">
+      <!-- Simple canvas container -->
+      <canvas id="desk-pad-modal-canvas"></canvas>
+      
+      <!-- Center Guide Lines -->
+      <div id="center-guide-vertical" style="position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: #f4a012; opacity: 0; pointer-events: none; z-index: 1000; transition: opacity 0.2s ease;"></div>
+      <div id="center-guide-horizontal" style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: #f4a012; opacity: 0; pointer-events: none; z-index: 1000; transition: opacity 0.2s ease;"></div>
+      
+      <div id="modal-drop-overlay" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(244,160,18,0.2); color:#222; font-size:2em; align-items:center; justify-content:center; z-index:10; pointer-events:none;">Drop images here</div>
+    </div>
+  </div>
+  
+  <!-- Preview Modal -->
+  <div id="previewModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:25000; align-items:center; justify-content:center; background:rgba(0,0,0,0.8);">
+    <div style="position:relative; background:#222; border-radius:18px; box-shadow:0 8px 36px #0005; padding:20px 20px 8px 20px; max-width:95vw; max-height:90vh; display:flex; flex-direction:column; align-items:center;">
+      <canvas id="previewCanvas" style="max-width:90vw; max-height:70vh; border-radius:12px; background:#222; width:100%; height:auto; display:block;"></canvas>
+      <button onclick="document.getElementById('previewModal').style.display='none'" style="margin: 20px auto 0 auto; padding: 8px 32px; background: #f4a012; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+      <button id="btn-save-preview" style="margin: 8px 0 0 8px; padding: 8px 32px; background: #333; color: #f4a012; border: 1px solid #f4a012; border-radius: 4px; cursor: pointer;">Save Preview</button>
+    </div>
+  </div>
+  
+  <!-- Add Image Modal -->
+  <div id="add-image-modal" class="add-image-modal">
+    <div class="add-image-header">
+      <span>Menu</span>
+      <button id="add-image-close" class="add-image-close">&times;</button>
+    </div>
+    <div class="add-image-content">
+      <div class="menu-section">
+        <div class="section-title">Images</div>
+        <button class="menu-item" id="menu-add-image">
+          <div class="menu-item-icon">📷</div>
+          Add Image
+        </button>
+        <button class="menu-item" id="menu-recent-images">
+          <div class="menu-item-icon">🖼️</div>
+          Recent Images
+        </button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="section-title">Recent Images</div>
+        <div id="recent-images-grid" class="recent-images-grid">
+          <!-- Recent images will be populated here -->
+        </div>
+      </div>
+      
+      <div class="menu-section">
+        <div class="section-title dpi-section-toggle" style="cursor: pointer; user-select: none;">
+          <span>Print Quality</span>
+          <span id="dpi-lock-indicator" style="float: right; margin-right: 8px; font-size: 12px; color: #f4a012; display: none;">🔒</span>
+          <span class="dpi-toggle-icon" style="float: right; transition: transform 0.3s ease;">▼</span>
+        </div>
+        <div id="current-dpi-display" style="font-size: 12px; color: #ccc; margin-bottom: 8px;">
+          72 DPI • 2088 × 787px
+        </div>
+        <div class="dpi-selection dpi-submenu" style="display: none;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-style: italic;">
+            💡 DPI is automatically locked after selection to preserve image quality. Click any option to change (warning will appear).
+          </div>
+          <button class="dpi-option active" data-dpi="100" data-width="2900" data-height="1093">
+            <div class="dpi-option-header">100 DPI</div>
+            <div class="dpi-option-details">2900 × 1093px</div>
+            <div class="dpi-option-desc">Basic quality</div>
+          </button>
+          <button class="dpi-option" data-dpi="200" data-width="5800" data-height="2186">
+            <div class="dpi-option-header">200 DPI</div>
+            <div class="dpi-option-details">5800 × 2186px</div>
+            <div class="dpi-option-desc">Good quality</div>
+          </button>
+          <button class="dpi-option" data-dpi="300" data-width="8700" data-height="3279">
+            <div class="dpi-option-header">300 DPI</div>
+            <div class="dpi-option-details">8700 × 3279px</div>
+            <div class="dpi-option-desc">Professional</div>
+          </button>
+        </div>
+      </div>
+      
+      <div class="menu-section">
+        <div class="section-title">Performance Mode</div>
+        <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-style: italic;">
+          💡 Switch between performance and quality modes
+        </div>
+        <div class="performance-mode-toggle" style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <button id="proxy-mode-btn" class="mode-btn active" data-mode="proxy" style="flex: 1; padding: 8px; background: #f4a012; color: #000; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">
+            🚀 Performance
+          </button>
+          <button id="quality-mode-btn" class="mode-btn" data-mode="quality" style="flex: 1; padding: 8px; background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">
+            🎨 Quality
+          </button>
+        </div>
+        <div id="mode-info" style="font-size: 11px; color: #ccc; padding: 8px; background: #2a2a2a; border-radius: 4px; border-left: 3px solid #f4a012;">
+          <strong>Performance Mode:</strong> Fast editing with proxy images, high-res export
+        </div>
+      </div>
+      
+      <div class="menu-section">
+        <div class="section-title">Canvas Size</div>
+        <div id="current-canvas-size-display" style="font-size: 12px; color: #ccc; margin-bottom: 8px;">
+          77:29 — EXTENDED
+        </div>
+        <div class="canvas-size-selection" style="margin-bottom: 16px;">
+          <select id="canvasSizeSelect" class="form-select form-select-sm" style="width: 100%; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 6px 8px; font-size: 12px;">
+            <option value="extended">EXTENDED</option>
+            <option value="immersive">IMMERSIVE</option>
+            <option value="laptop">LAPTOP</option>
+            <option value="playmat">PLAY MAT</option>
+            <option value="fullsize">FULLSIZE</option>
+            <option value="supersize">SUPERSIZE</option>
+          </select>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+  
+  <!-- Smoke Overlay for Animation -->
+  <div id="smoke-overlay" class="smoke-overlay"></div>
+  
+
+  <!-- Proxy System for High-Resolution Export -->
+  <script src="proxy-system.js"></script>
+  <script src="proxy-integration.js"></script>
+  <script src="mobile-interface.js"></script>
+  <script src="main.js"></script>
