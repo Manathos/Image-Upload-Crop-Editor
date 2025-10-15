@@ -802,6 +802,16 @@ body.modal-open {
   touch-action: none;
 }
 
+/* Make drag handle immune to long-press gestures and child elements non-interactive */
+#layers-list .layer-drag-handle {
+  touch-action: none;
+  -ms-touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#layers-list .layer-drag-handle * {
+  pointer-events: none;
+}
+
 .layers-section {
   margin-bottom: 24px;
 }

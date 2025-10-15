@@ -7318,7 +7318,7 @@
       layerDiv.innerHTML = `
         <div class="layer-item-header">
           <div class="layer-drag-handle" title="Drag to reorder">
-            <i class="bi bi-grip-vertical"></i>
+            <i class="bi bi-grip-vertical" draggable="false"></i>
           </div>
           <div class="layer-info">
             <div class="layer-name" title="Double-click to rename">${layer.name}</div>
@@ -7358,6 +7358,17 @@
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         deleteLayer(layer.id);
+      });
+
+      // Disable native drag and context menu on this row and descendants
+      layerDiv.setAttribute('draggable', 'false');
+      layerDiv.addEventListener('dragstart', (e) => e.preventDefault());
+      layerDiv.addEventListener('contextmenu', (e) => e.preventDefault());
+      // Ensure any images/SVGs/icons inside are not draggable
+      layerDiv.querySelectorAll('img, svg, i').forEach(el => {
+        el.setAttribute('draggable', 'false');
+        el.addEventListener('dragstart', (e) => e.preventDefault());
+        el.addEventListener('contextmenu', (e) => e.preventDefault());
       });
 
       // Layer selection
