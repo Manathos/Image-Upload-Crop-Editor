@@ -8111,7 +8111,28 @@
       document.addEventListener('mousedown', handleLayerMouseDown);
       document.addEventListener('mousemove', handleLayerMouseMove);
       document.addEventListener('mouseup', handleLayerMouseUp);
+
+      // Suppress native context menu and native image dragging within the layers list
+      const layersList = document.getElementById('layers-list');
+      if (layersList && !layersList.dataset.ctxBlockBound) {
+        layersList.addEventListener('contextmenu', (e) => e.preventDefault());
+        layersList.addEventListener('dragstart', (e) => e.preventDefault());
+        layersList.dataset.ctxBlockBound = '1';
+      }
     }
+
+    // Capture-phase guard to suppress native context menu/drag originating from the layers list
+    const suppressCtxFromLayers = (e) => {
+      if (e.target && e.target.closest && e.target.closest('#layers-list')) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('contextmenu', suppressCtxFromLayers, { capture: true });
+    document.addEventListener('dragstart', (e) => {
+      if (e.target && e.target.closest && e.target.closest('#layers-list')) {
+        e.preventDefault();
+      }
+    }, true);
 
     // Setup layer arrow controls
     function setupLayerArrowControls() {
@@ -8255,6 +8276,11 @@
       // Make original semi-transparent but keep it in place
       layerItem.classList.add('dragging');
       layerItem.style.opacity = '0.3';
+      // Disable gestures/scroll on the list while dragging
+      const layersListEl = document.getElementById('layers-list');
+      if (layersListEl) {
+        layersListEl.classList.add('dragging');
+      }
       
       // Create drop indicators
       createDropIndicators();
@@ -8304,6 +8330,12 @@
       if (draggedElement && draggedElement.dragClone) {
         draggedElement.dragClone.remove();
         draggedElement.dragClone = null;
+      }
+
+      // Re-enable gestures/scroll on the list after dragging
+      const layersListEl = document.getElementById('layers-list');
+      if (layersListEl) {
+        layersListEl.classList.remove('dragging');
       }
 
       // Apply the final position change using the helper function

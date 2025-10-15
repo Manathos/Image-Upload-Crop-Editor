@@ -786,6 +786,22 @@ body.modal-open {
   min-height: 100px;
 }
 
+/* Prevent long‑press menu, text selection, and image drag on layers */
+#layers-list, #layers-list .layer-item, #layers-list .layer-item * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* If any thumbnails/images are present, make them non-draggable and non-interactive */
+#layers-list img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+/* During drag, disable gestures/scroll; toggled via JS */
+#layers-list.dragging {
+  touch-action: none;
+}
+
 .layers-section {
   margin-bottom: 24px;
 }
@@ -1828,11 +1844,6 @@ body.modal-open {
   transition: top 0.3s ease, left 0.3s ease, width 0.3s ease;
 }
 
-#desk-pad-modal-canvas-container.with-alignment-toolbar {
-  /* Remove the shifting - keep original position */
-  /* top: 80px; */
-  /* height: calc(100vh - 80px); */
-}
 
 /* Pattern background for transparency */
 #desk-pad-modal-canvas-container::before {
@@ -2157,9 +2168,6 @@ body.modal-open {
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#desk-pad-modal-canvas-container.shifted {
-  /* No viewport shifting - just let the menu slide over */
-}
 
 /* Recent images grid for the menu */
 .recent-images-grid {
