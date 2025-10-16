@@ -4378,6 +4378,11 @@ body.modal-open {
     box-sizing: border-box !important;
     pointer-events: auto !important;
   }
+  /* Ensure JS controls touch gestures for both area and Fabric container */
+  #mobile-canvas-area,
+  #mobile-canvas-area .canvas-container {
+    touch-action: none !important;
+  }
   
   /* Mobile canvas area pattern background - DISABLED (now handled by JavaScript) */
   #mobile-canvas-area::before {

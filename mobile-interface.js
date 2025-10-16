@@ -1920,22 +1920,35 @@ function installMobilePanAndPinch() {
   const area = document.getElementById('mobile-canvas-area');
   const container = document.getElementById('mobile-canvas-container');
   const upper = (window.mobileCanvas && window.mobileCanvas.upperCanvasEl) || document.querySelector('.upper-canvas');
-  const target = upper || container || area;
-  if (!target) return;
-  // Ensure the interactive layer doesn't hand control to browser gestures
-  if (upper) {
-    upper.style.touchAction = 'none';
-  } else if (container) {
-    container.style.touchAction = 'none';
-  }
+  const targets = [];
+  if (upper) targets.push(upper);
+  if (container) targets.push(container);
+  if (area) targets.push(area);
+  if (!targets.length) return;
+  // Ensure the interactive layers don't hand control to browser gestures
+  targets.forEach(t => { try { t.style.touchAction = 'none'; } catch(_) {} });
 
   const active = new Map();
   const dist = (p1,p2)=> Math.hypot(p2.x - p1.x, p2.y - p1.y);
   const midpoint = (p1,p2)=> ({ x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 });
+  const clampPan = () => {
+    const areaEl = document.getElementById('mobile-canvas-area');
+    if (!areaEl) return;
+    const r = areaEl.getBoundingClientRect();
+    const extra = 80; // breathing room in px
+    const maxX = Math.max(0, ((mobileCurrentScale - 1) * r.width) / 2 + extra);
+    const maxY = Math.max(0, ((mobileCurrentScale - 1) * r.height) / 2 + extra);
+    if (mobilePanX > maxX) mobilePanX = maxX;
+    if (mobilePanX < -maxX) mobilePanX = -maxX;
+    if (mobilePanY > maxY) mobilePanY = maxY;
+    if (mobilePanY < -maxY) mobilePanY = -maxY;
+  };
 
-  target.addEventListener('pointerdown', (e)=>{
+  const onPointerDown = (el) => (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    target.setPointerCapture?.(e.pointerId);
+    // Ignore when overlays likely active
+    try { if (layersHoldOverlayState && layersHoldOverlayState.isOpen) return; } catch(_) {}
+    el.setPointerCapture?.(e.pointerId);
     active.set(e.pointerId, { x:e.clientX, y:e.clientY });
     // Start pinch if two fingers
     if (active.size === 2) {
@@ -1947,6 +1960,13 @@ function installMobilePanAndPinch() {
         }
         isPanningOneFinger = false;
       }
+      // Disable hit testing/selection during pinch
+      if (window.mobileCanvas) {
+        prevSkipTargetFind = window.mobileCanvas.skipTargetFind;
+        prevSelectionEnabled = window.mobileCanvas.selection;
+        window.mobileCanvas.skipTargetFind = true;
+        window.mobileCanvas.selection = false;
+      }
       const [p1,p2] = Array.from(active.values());
       const m = midpoint(p1,p2);
       pinchTracking = {
@@ -1956,9 +1976,9 @@ function installMobilePanAndPinch() {
         centerX: m.x, centerY: m.y
       };
     }
-  }, { passive: true, capture: true });
+  };
 
-  target.addEventListener('pointermove', (e)=>{
+  const onPointerMove = (e) => {
     if (!active.has(e.pointerId)) return;
     if (pinchTracking && active.has(pinchTracking.id1) && active.has(pinchTracking.id2)) {
       // Pinch zoom
@@ -1972,6 +1992,7 @@ function installMobilePanAndPinch() {
         mobilePanX = pinchTracking.startPanX + (pinchTracking.centerX - pinchTracking.startPanX) * (scaleDelta - 1);
         mobilePanY = pinchTracking.startPanY + (pinchTracking.centerY - pinchTracking.startPanY) * (scaleDelta - 1);
       }
+      clampPan();
       resizeMobileCanvasDom(mobileCurrentScale);
       e.preventDefault();
       return;
@@ -1992,15 +2013,21 @@ function installMobilePanAndPinch() {
       const dy = e.clientY - prev.y;
       active.set(e.pointerId, { x:e.clientX, y:e.clientY });
       mobilePanX += dx; mobilePanY += dy;
+      clampPan();
       resizeMobileCanvasDom(mobileCurrentScale);
       e.preventDefault();
     }
-  }, { passive: false, capture: true });
+  };
 
-  const end = (e)=>{
+  const onPointerEnd = (e) => {
     active.delete(e.pointerId);
     if (pinchTracking && (e.pointerId === pinchTracking.id1 || e.pointerId === pinchTracking.id2)) {
       pinchTracking = null;
+      // Restore Fabric flags after pinch ends
+      if (window.mobileCanvas) {
+        if (prevSkipTargetFind !== null) window.mobileCanvas.skipTargetFind = prevSkipTargetFind;
+        if (prevSelectionEnabled !== null) window.mobileCanvas.selection = prevSelectionEnabled;
+      }
     }
     if (isPanningOneFinger && active.size === 0) {
       if (window.mobileCanvas) {
@@ -2010,8 +2037,15 @@ function installMobilePanAndPinch() {
       isPanningOneFinger = false;
     }
   };
-  target.addEventListener('pointerup', end, { passive: true, capture: true });
-  target.addEventListener('pointercancel', end, { passive: true, capture: true });
+
+  const addTarget = (el) => {
+    el.addEventListener('pointerdown', onPointerDown(el), { passive: true, capture: true });
+    el.addEventListener('pointermove', onPointerMove, { passive: false, capture: true });
+    el.addEventListener('pointerup', onPointerEnd, { passive: true, capture: true });
+    el.addEventListener('pointercancel', onPointerEnd, { passive: true, capture: true });
+  };
+
+  targets.forEach(addTarget);
 }
 
 function mobileCanvasZoomIn() {
