@@ -1974,13 +1974,18 @@ function installMobilePanAndPinch() {
         startPanX: mobilePanX, startPanY: mobilePanY,
         centerX: m.x, centerY: m.y
       };
-      // Capture after pinch starts to keep stream consistent
-      try { el.setPointerCapture?.(e.pointerId); } catch(_) {}
+      // Capture both pointers after pinch starts to keep stream consistent
+      try { el.setPointerCapture?.(pinchTracking.id1); } catch(_) {}
+      try { el.setPointerCapture?.(pinchTracking.id2); } catch(_) {}
     }
   };
 
   const onPointerMove = (e) => {
     if (!active.has(e.pointerId)) return;
+    const prevPos = active.get(e.pointerId);
+    // Update this pointer's latest position first so pinch math uses fresh data
+    active.set(e.pointerId, { x:e.clientX, y:e.clientY });
+
     if (pinchTracking && active.has(pinchTracking.id1) && active.has(pinchTracking.id2)) {
       // Pinch zoom
       const p1 = active.get(pinchTracking.id1), p2 = active.get(pinchTracking.id2);
@@ -1998,6 +2003,14 @@ function installMobilePanAndPinch() {
       e.preventDefault();
       return;
     }
+    // If we were pinch-tracking but lost a finger, end pinch and restore flags
+    if (pinchTracking && (!active.has(pinchTracking.id1) || !active.has(pinchTracking.id2))) {
+      pinchTracking = null;
+      if (window.mobileCanvas) {
+        if (prevSkipTargetFind !== null) window.mobileCanvas.skipTargetFind = prevSkipTargetFind;
+        if (prevSelectionEnabled !== null) window.mobileCanvas.selection = prevSelectionEnabled;
+      }
+    }
     // Single-finger pan when no object is selected
     if (active.size === 1 && (!window.mobileCanvas || !window.mobileCanvas.getActiveObject())) {
       if (!isPanningOneFinger) {
@@ -2011,9 +2024,8 @@ function installMobilePanAndPinch() {
         // Capture when pan begins to avoid losing stream
         try { (e.currentTarget && e.currentTarget.setPointerCapture) && e.currentTarget.setPointerCapture(e.pointerId); } catch(_) {}
       }
-      const prev = active.get(e.pointerId);
-      const dx = e.clientX - prev.x;
-      const dy = e.clientY - prev.y;
+      const dx = e.clientX - prevPos.x;
+      const dy = e.clientY - prevPos.y;
       active.set(e.pointerId, { x:e.clientX, y:e.clientY });
       mobilePanX += dx; mobilePanY += dy;
       clampPan();
@@ -2024,9 +2036,20 @@ function installMobilePanAndPinch() {
 
   const onPointerEnd = (e) => {
     active.delete(e.pointerId);
+    // Release capture for this pointer if any
+    try { (e.currentTarget && e.currentTarget.releasePointerCapture) && e.currentTarget.releasePointerCapture(e.pointerId); } catch(_) {}
+
     if (pinchTracking && (e.pointerId === pinchTracking.id1 || e.pointerId === pinchTracking.id2)) {
       pinchTracking = null;
       // Restore Fabric flags after pinch ends
+      if (window.mobileCanvas) {
+        if (prevSkipTargetFind !== null) window.mobileCanvas.skipTargetFind = prevSkipTargetFind;
+        if (prevSelectionEnabled !== null) window.mobileCanvas.selection = prevSelectionEnabled;
+      }
+    }
+    // Safety: if fewer than two pointers remain, ensure pinch state is cleared
+    if (pinchTracking && active.size < 2) {
+      pinchTracking = null;
       if (window.mobileCanvas) {
         if (prevSkipTargetFind !== null) window.mobileCanvas.skipTargetFind = prevSkipTargetFind;
         if (prevSelectionEnabled !== null) window.mobileCanvas.selection = prevSelectionEnabled;
