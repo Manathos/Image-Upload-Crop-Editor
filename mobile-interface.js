@@ -3291,12 +3291,8 @@ function installMobileLayersDock() {
       const PREVIEW_W = 56; const PREVIEW_H = Math.round(PREVIEW_W * 0.64);
       for (let i = 0; i < items.length; i++) {
         const el = document.createElement('div');
-        el.style.cssText = `position:absolute; left:50%; width:${PREVIEW_W}px; height:${PREVIEW_H}px; border-radius:10px; border:2px solid rgba(255,255,255,0.7); overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.28); background:transparent;`;
-        const img = document.createElement('img');
-        img.alt = 'Layer';
-        img.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; object-fit:cover;';
-        el.appendChild(img);
-        buildObjectThumbnail(items[i], 96, (src) => { img.src = src; });
+        el.style.cssText = `position:absolute; left:50%; width:${PREVIEW_W}px; height:${PREVIEW_H}px; border-radius:10px; border:2px solid rgba(255,255,255,0.7); overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.28); background:transparent center/cover no-repeat;`;
+        buildObjectThumbnail(items[i], 96, (src) => { el.style.backgroundImage = `url("${src}")`; });
         stack.appendChild(el);
         els.push(el);
       }
@@ -3560,6 +3556,12 @@ function installMobileLayersDock() {
       expanded = false; reorderModeDock = false; activeIdxDock = null; targetIdxDock = null; dragLocalYDock = null; renderDock();
     };
     document.addEventListener('pointerdown', onOutside, true);
+
+    // Suppress native menus for the dock column and its descendants
+    col.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
+    const dockGuard = (e) => { if (e.target && e.target.closest && e.target.closest('#mobile-layers-dock')) { e.preventDefault(); } };
+    document.addEventListener('contextmenu', dockGuard, { capture: true });
+    document.addEventListener('dragstart', dockGuard, true);
 
     function refreshAll() { rebuildStack(); }
     setTimeout(refreshAll, 0);
@@ -3991,12 +3993,7 @@ function openLayersComboOverlay(ev) {
     const els = items.map(() => {
       const el = document.createElement('div');
       el.className = 'mobile-layer-item';
-      el.style.cssText = `position:absolute; left:50%; width:${PREVIEW_W}px; height:${PREVIEW_H}px; border-radius:10px; border:2px solid rgba(255,255,255,0.7); transform:translate3d(-50%,0,0); will-change:transform; background:transparent; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.28);`;
-      const img = document.createElement('img');
-      img.alt = 'Layer';
-      img.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#10141c;';
-      el.appendChild(img);
-      el._img = img;
+      el.style.cssText = `position:absolute; left:50%; width:${PREVIEW_W}px; height:${PREVIEW_H}px; border-radius:10px; border:2px solid rgba(255,255,255,0.7); transform:translate3d(-50%,0,0); will-change:transform; background:#10141c center/cover no-repeat; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.28);`;
       col.appendChild(el);
       return el;
     });
@@ -4004,9 +4001,8 @@ function openLayersComboOverlay(ev) {
     // thumbnails
     items.forEach((obj, i) => {
       const el = els[i];
-      const img = el._img;
       buildObjectThumbnail(obj, Math.max(PREVIEW_W, PREVIEW_H), (src) => {
-        img.src = src;
+        el.style.backgroundImage = `url("${src}")`;
       });
     });
 
@@ -4164,9 +4160,54 @@ function openLayersComboOverlay(ev) {
     col.addEventListener('pointerup', onUp, { passive:false, capture:true });
     col.addEventListener('pointercancel', onUp, { passive:false, capture:true });
 
-    function close(){ try{ document.body.removeChild(overlay); }catch(_){} const addBtn = document.querySelector('#mobile-add-overlay > button'); if (addBtn) { addBtn.style.opacity = ''; addBtn.style.pointerEvents = 'auto'; addBtn.disabled = false; } try { collapsedInd.style.display = wasDisplay || 'block'; } catch(_) {} }
+    // Suppress native context menus within the combo overlay
+    overlay.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
+    col.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
+    const comboGuard = (e) => { if (e.target && e.target.closest && e.target.closest('#mobile-layers-combo-overlay')) { e.preventDefault(); } };
+    document.addEventListener('contextmenu', comboGuard, { capture: true });
+    document.addEventListener('dragstart', comboGuard, true);
+
+    function close(){
+      try{ document.body.removeChild(overlay); }catch(_){}
+      const addBtn = document.querySelector('#mobile-add-overlay > button');
+      if (addBtn) { addBtn.style.opacity = ''; addBtn.style.pointerEvents = 'auto'; addBtn.disabled = false; }
+      try { collapsedInd.style.display = wasDisplay || 'block'; } catch(_) {}
+      // detach selection sync
+      try {
+        if (window.mobileCanvas && onSelChange) {
+          window.mobileCanvas.off('selection:created', onSelChange);
+          window.mobileCanvas.off('selection:updated', onSelChange);
+          window.mobileCanvas.off('selection:cleared', onSelChange);
+        }
+      } catch(_) {}
+      try { layersHoldOverlayState.comboCtx = null; } catch(_) {}
+    }
     const outside = (e)=>{ if (!overlay.contains(e.target)) { close(); } };
     setTimeout(()=>{ document.addEventListener('pointerdown', outside, true); }, 0);
+
+    // Selection sync: auto-scroll combo when canvas selection changes
+    const onSelChange = () => {
+      try {
+        const activeObj = window.mobileCanvas?.getActiveObject();
+        if (!activeObj) return;
+        const idx = items.indexOf(activeObj);
+        if (idx >= 0) animateTo(idx);
+      } catch(_) {}
+    };
+    try {
+      if (window.mobileCanvas) {
+        window.mobileCanvas.on('selection:created', onSelChange);
+        window.mobileCanvas.on('selection:updated', onSelChange);
+        window.mobileCanvas.on('selection:cleared', onSelChange);
+      }
+    } catch(_) {}
+    try {
+      layersHoldOverlayState.comboCtx = {
+        isOpen: true,
+        animateTo: (i) => { try { if (typeof i === 'number') animateTo(i); } catch(_) {} },
+        getIndexForObject: (obj) => { try { return items.indexOf(obj); } catch(_) { return -1; } }
+      };
+    } catch(_) {}
   } catch(_) { /* no-op */ }
 }
 
