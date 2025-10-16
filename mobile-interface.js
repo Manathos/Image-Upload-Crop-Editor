@@ -107,6 +107,12 @@ function ensureBottomTransformLongPressHooks() {
     const MOVE_CANCEL_PX = 10;
     window.mobileCanvas.on('mouse:down', (opt) => {
       const p = opt && opt.e ? opt.e : null;
+      // If pressing on a transform control/handle, do not start long-press
+      const pressedControl = !!(opt && ((opt.transform && opt.transform.corner) || (opt.e && opt.e.corner) || (opt.target && opt.target.__corner)));
+      if (pressedControl) {
+        if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        return;
+      }
       startX = p && typeof p.clientX === 'number' ? p.clientX : 0;
       startY = p && typeof p.clientY === 'number' ? p.clientY : 0;
       if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
@@ -124,8 +130,13 @@ function ensureBottomTransformLongPressHooks() {
     });
     // Explicitly cancel long-press while object is moving/dragging
     try {
-      window.mobileCanvas.on('object:moving', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
-      window.mobileCanvas.on('mouse:wheel', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
+      window.mobileCanvas.on('object:moving', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
+      window.mobileCanvas.on('mouse:wheel', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
+      // Cancel/hide during resize/rotate lifecycle
+      window.mobileCanvas.on('object:scaling', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
+      window.mobileCanvas.on('object:scaled', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
+      window.mobileCanvas.on('object:rotating', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
+      window.mobileCanvas.on('object:modified', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } hideQuickActionMenu(); });
     } catch(_) {}
     window.mobileCanvas.on('mouse:up', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
     window.mobileCanvas.on('selection:cleared', () => hideBottomTransformOverlayRow());
@@ -3211,6 +3222,16 @@ let layersHoldOverlayState = {
   attachedButton: null
 };
 
+// Global contextmenu guard toggle for stubborn mobile browsers (e.g., Edge)
+try { window.layersContextMenuGlobalGuardActive = false; } catch(_) {}
+try {
+  document.addEventListener('contextmenu', (e) => {
+    if (window.layersContextMenuGlobalGuardActive) {
+      e.preventDefault();
+    }
+  }, { capture: true });
+} catch(_) {}
+
 function installMobileLayersOverlayHooks() {
   // Refresh thumbnail when objects are added/removed
   if (!window.mobileCanvas) return;
@@ -3471,6 +3492,8 @@ function installMobileLayersDock() {
 
     col.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      // Activate global guard while interacting with the dock to suppress native menus
+      try { window.layersContextMenuGlobalGuardActive = true; } catch(_) {}
       // In collapsed state, only allow interaction when pressing on the visible selected item
       if (!expanded && !reorderModeDock && !isInsideSelectedEl(e.clientX, e.clientY)) {
         return; // ignore interactions outside the visible main layer
@@ -3538,6 +3561,8 @@ function installMobileLayersDock() {
         else { animateTo(Math.round(wheelOffset)); }
       }
       e.preventDefault(); e.stopPropagation();
+      // Deactivate global guard after interaction completes
+      try { window.layersContextMenuGlobalGuardActive = false; } catch(_) {}
     }, { capture: true, passive: false });
 
     // Tap toggles expand/collapse if not a drag
@@ -3972,6 +3997,8 @@ function openLayersComboOverlay(ev) {
     // Append inside the column so coordinates are relative to the combo, not the whole viewport
     col.appendChild(indLayer);
     document.body.appendChild(overlay);
+    // Activate global guard for the duration of the combo overlay
+    try { window.layersContextMenuGlobalGuardActive = true; } catch(_) {}
 
     const btnWrap = document.getElementById('mobile-layers-overlay-btn');
     // Default position near click; overridden by button anchoring below
@@ -4181,6 +4208,8 @@ function openLayersComboOverlay(ev) {
         }
       } catch(_) {}
       try { layersHoldOverlayState.comboCtx = null; } catch(_) {}
+      // Deactivate global guard now that combo is closed
+      try { window.layersContextMenuGlobalGuardActive = false; } catch(_) {}
     }
     const outside = (e)=>{ if (!overlay.contains(e.target)) { close(); } };
     setTimeout(()=>{ document.addEventListener('pointerdown', outside, true); }, 0);

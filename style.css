@@ -4429,6 +4429,15 @@ body.modal-open {
     z-index: 1 !important;
     pointer-events: auto !important;
   }
+  /* Harden dock and combo overlay against long-press browser menus */
+  #mobile-layers-dock,
+  #mobile-layers-dock *,
+  #mobile-layers-combo-overlay,
+  #mobile-layers-combo-overlay * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
   
   /* Theme-specific pattern overrides removed - now handled by JavaScript class toggling */
 
