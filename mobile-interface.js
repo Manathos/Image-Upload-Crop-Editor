@@ -1921,9 +1921,9 @@ function installMobilePanAndPinch() {
   const container = document.getElementById('mobile-canvas-container');
   const upper = (window.mobileCanvas && window.mobileCanvas.upperCanvasEl) || document.querySelector('.upper-canvas');
   const targets = [];
+  // Prefer attaching to the Fabric upper canvas; fall back to area only if missing.
   if (upper) targets.push(upper);
-  if (container) targets.push(container);
-  if (area) targets.push(area);
+  else if (area) targets.push(area);
   if (!targets.length) return;
   // Ensure the interactive layers don't hand control to browser gestures
   targets.forEach(t => { try { t.style.touchAction = 'none'; } catch(_) {} });
@@ -1948,7 +1948,6 @@ function installMobilePanAndPinch() {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Ignore when overlays likely active
     try { if (layersHoldOverlayState && layersHoldOverlayState.isOpen) return; } catch(_) {}
-    el.setPointerCapture?.(e.pointerId);
     active.set(e.pointerId, { x:e.clientX, y:e.clientY });
     // Start pinch if two fingers
     if (active.size === 2) {
@@ -1975,6 +1974,8 @@ function installMobilePanAndPinch() {
         startPanX: mobilePanX, startPanY: mobilePanY,
         centerX: m.x, centerY: m.y
       };
+      // Capture after pinch starts to keep stream consistent
+      try { el.setPointerCapture?.(e.pointerId); } catch(_) {}
     }
   };
 
@@ -2007,6 +2008,8 @@ function installMobilePanAndPinch() {
           window.mobileCanvas.skipTargetFind = true; // disable hit testing while panning
           window.mobileCanvas.selection = false;     // disable marquee/band selection
         }
+        // Capture when pan begins to avoid losing stream
+        try { (e.currentTarget && e.currentTarget.setPointerCapture) && e.currentTarget.setPointerCapture(e.pointerId); } catch(_) {}
       }
       const prev = active.get(e.pointerId);
       const dx = e.clientX - prev.x;
