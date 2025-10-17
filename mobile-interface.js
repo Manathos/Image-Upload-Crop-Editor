@@ -1949,6 +1949,27 @@ function installMobilePanAndPinch() {
     // Ignore when overlays likely active
     try { if (layersHoldOverlayState && layersHoldOverlayState.isOpen) return; } catch(_) {}
     active.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    // If this is the first active pointer, decide early whether this is a pan or an object interaction
+    if (active.size === 1 && !pinchTracking) {
+      let targetUnderFinger = null;
+      try { if (window.mobileCanvas && typeof window.mobileCanvas.findTarget === 'function') targetUnderFinger = window.mobileCanvas.findTarget(e, false); } catch(_) {}
+      // Begin panning only if finger started on empty canvas (no target)
+      if (!targetUnderFinger) {
+        if (!isPanningOneFinger) {
+          isPanningOneFinger = true;
+          if (window.mobileCanvas) {
+            prevSkipTargetFind = window.mobileCanvas.skipTargetFind;
+            prevSelectionEnabled = window.mobileCanvas.selection;
+            window.mobileCanvas.skipTargetFind = true;
+            window.mobileCanvas.selection = false;
+          }
+          try { el.setPointerCapture?.(e.pointerId); } catch(_) {}
+        }
+      } else {
+        // Ensure we are not in pan mode so Fabric can handle selection/manipulation
+        isPanningOneFinger = false;
+      }
+    }
     // Start pinch if two fingers
     if (active.size === 2) {
       // cancel any panning state
@@ -2011,19 +2032,8 @@ function installMobilePanAndPinch() {
         if (prevSelectionEnabled !== null) window.mobileCanvas.selection = prevSelectionEnabled;
       }
     }
-    // Single-finger pan when no object is selected
-    if (active.size === 1 && (!window.mobileCanvas || !window.mobileCanvas.getActiveObject())) {
-      if (!isPanningOneFinger) {
-        isPanningOneFinger = true;
-        if (window.mobileCanvas) {
-          prevSkipTargetFind = window.mobileCanvas.skipTargetFind;
-          prevSelectionEnabled = window.mobileCanvas.selection;
-          window.mobileCanvas.skipTargetFind = true; // disable hit testing while panning
-          window.mobileCanvas.selection = false;     // disable marquee/band selection
-        }
-        // Capture when pan begins to avoid losing stream
-        try { (e.currentTarget && e.currentTarget.setPointerCapture) && e.currentTarget.setPointerCapture(e.pointerId); } catch(_) {}
-      }
+    // Single-finger pan only when we explicitly started a pan on empty canvas
+    if (active.size === 1 && isPanningOneFinger) {
       const dx = e.clientX - prevPos.x;
       const dy = e.clientY - prevPos.y;
       active.set(e.pointerId, { x:e.clientX, y:e.clientY });
